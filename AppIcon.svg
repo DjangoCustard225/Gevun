@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Gevun — pearl headphones</title>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0.85" y2="1">
+      <stop stop-color="#F38B70"/>
+      <stop offset="0.48" stop-color="#E5675B"/>
+      <stop offset="1" stop-color="#BF4055"/>
+    </linearGradient>
+    <radialGradient id="light" cx="25%" cy="12%" r="85%">
+      <stop stop-color="#FFE4D4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFE4D4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pearl" x1="0.15" y1="0" x2="0.8" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.38" stop-color="#FFF5EF"/>
+      <stop offset="0.70" stop-color="#F6D5CC"/>
+      <stop offset="1" stop-color="#FFF0E7"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0.8" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.46" stop-color="#FFE9DE"/>
+      <stop offset="1" stop-color="#D78A83"/>
+    </linearGradient>
+    <filter id="depth" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#77223E" flood-opacity="0.20"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#8F3646" flood-opacity="0.14"/>
+    </filter>
+    <g id="headphones" transform="translate(0 20)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M264 568 V480 A248 248 0 0 1 760 480 V568"/>
+      <rect x="264" y="520" width="116" height="224" rx="44"/>
+      <rect x="644" y="520" width="116" height="224" rx="44"/>
+    </g>
+    <!-- Union masks keep the band and earcup joints free from overlapping seams. -->
+    <mask id="outline" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <use href="#headphones" stroke="white" stroke-width="56"/>
+    </mask>
+    <mask id="face" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <use href="#headphones" stroke="white" stroke-width="50"/>
+    </mask>
+  </defs>
+  <!-- Opaque, full-bleed canvas; iOS applies the outer icon shape. -->
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <rect width="1024" height="1024" fill="url(#light)"/>
+  <g filter="url(#depth)">
+    <rect width="1024" height="1024" fill="url(#rim)" mask="url(#outline)"/>
+    <rect width="1024" height="1024" fill="url(#pearl)" mask="url(#face)"/>
+  </g>
+</svg>

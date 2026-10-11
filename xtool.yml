@@ -1,0 +1,6 @@
+version: 1
+bundleID: app.gevun.music
+infoPath: Gevun/Info.plist
+iconPath: AppIcon.png
+resources:
+  - Gevun/PrivacyInfo.xcprivacy
