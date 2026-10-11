@@ -2,6 +2,16 @@
 
 A music player for your Navidrome library on iPhone and iPad.
 
+## Screenshots
+
+<p align="center">
+  <a href="docs/screenshots/albums.webp"><img src="docs/screenshots/albums.webp" width="220" alt="Albums library with cover artwork"></a>
+  <a href="docs/screenshots/album.webp"><img src="docs/screenshots/album.webp" width="220" alt="Album details and track list"></a>
+  <a href="docs/screenshots/player.webp"><img src="docs/screenshots/player.webp" width="220" alt="Music player with colors drawn from the album artwork"></a>
+  <a href="docs/screenshots/artist.webp"><img src="docs/screenshots/artist.webp" width="220" alt="Artist biography and albums"></a>
+  <a href="docs/screenshots/songs.webp"><img src="docs/screenshots/songs.webp" width="220" alt="Songs library and mini player"></a>
+</p>
+
 ## Features
 
 - Browse albums, artists, and songs, or search your library.
