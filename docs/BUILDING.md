@@ -20,6 +20,8 @@ xtool dev build -c release --triple arm64-apple-ios27.0 --ipa
 
 The unsigned IPA is written to `xtool/Gevun.ipa`.
 
+Keep the filename `Gevun.ipa` when uploading releases. Version numbers belong in the app and release tag, not the IPA filename.
+
 ## Checks
 
 ```sh

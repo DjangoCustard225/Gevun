@@ -26,7 +26,7 @@ A music player for your Navidrome library on iPhone and iPad.
 
 Requires **iOS 27 or later** and a Navidrome server.
 
-Download [Gevun 0.1](https://github.com/DjangoCustard225/Gevun/releases/tag/v0.1). The IPA is unsigned; sign it with your sideloading tool before installing.
+Download [Gevun.ipa](https://github.com/DjangoCustard225/Gevun/releases/latest/download/Gevun.ipa). The IPA is unsigned; sign it with your sideloading tool before installing.
 
 Open Gevun and sign in with your server address, username, and password. You can add more servers in Settings.
 
@@ -37,3 +37,5 @@ Music streams from your server in its original format. Offline downloads aren't 
 No ads or analytics. Passwords stay in Keychain. Listening history sharing is optional and off by default.
 
 [Build from source](docs/BUILDING.md)
+
+Licensed under the [MIT License](LICENSE).
