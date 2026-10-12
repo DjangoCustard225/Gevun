@@ -36,6 +36,4 @@ Music streams from your server in its original format. Offline downloads aren't 
 
 No ads or analytics. Passwords stay in Keychain. Listening history sharing is optional and off by default.
 
-[Build from source](docs/BUILDING.md)
-
 Licensed under the [MIT License](LICENSE).
