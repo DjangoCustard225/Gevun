@@ -9,15 +9,15 @@ final class AppStore {
     private(set) var activeID: UUID?
     private(set) var api: NavidromeAPI?
     private(set) var sessionID = UUID()
-    var albums: [Album] = []
-    var artists: [Artist] = []
-    var songs: [Song] = []
-    var playlists: [Playlist] = []
+    private(set) var albums: [Album] = []
+    private(set) var artists: [Artist] = []
+    private(set) var songs: [Song] = []
+    private(set) var playlists: [Playlist] = []
     private(set) var libraryLoading: Set<LibraryCategory> = []
     private(set) var libraryErrors: [LibraryCategory: String] = [:]
     private(set) var libraryLoaded: Set<LibraryCategory> = []
-    var moreAlbums = true
-    var moreSongs = true
+    private(set) var moreAlbums = true
+    private(set) var moreSongs = true
     var albumOrder: AlbumOrder = .alphabeticalByName
     var notice: String?
     var showConnection = false
@@ -105,7 +105,8 @@ final class AppStore {
         moreAlbums = true
         moreSongs = true
         loadedAlbumOrder = nil
-        serverVersion = ""; artwork.clear()
+        serverVersion = ""
+        artwork.clear()
     }
 
     func ensureLibrary(_ category: LibraryCategory) async {
@@ -172,18 +173,19 @@ final class AppStore {
         do {
             let detail = try await api.album(album.id)
             guard sessionID == session, !Task.isCancelled else { return }
-            if detail.songs.isEmpty { notice = "This album has no available tracks."; return }
+            guard !detail.songs.isEmpty else {
+                notice = "This album has no available tracks."
+                return
+            }
             player.play(detail.songs, at: shuffle ? Int.random(in: 0..<detail.songs.count) : 0, shuffle: shuffle)
         } catch { if sessionID == session, !Task.isCancelled { notice = friendlyError(error) } }
     }
-
 }
 
 enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
     case albums, artists, songs, playlists
     var id: Self { self }
     var title: String { rawValue.capitalized }
-
 }
 
 func friendlyError(_ error: Error) -> String {

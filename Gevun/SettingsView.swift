@@ -100,7 +100,7 @@ private struct AboutGevunView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
     private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
     var body: some View {
@@ -127,7 +127,8 @@ private struct AboutGevunView: View {
                     "Credentials are saved in Keychain. Music streams directly from your server. Gevun has no analytics or advertising."
                 )
                 Button("Clear artwork cache", systemImage: "trash") {
-                    store.artwork.clear(); store.notice = "Artwork memory cache cleared."
+                    store.artwork.clear()
+                    store.notice = "Artwork memory cache cleared."
                 }
             }.listRowBackground(theme.surface)
         }.listSectionSpacing(.compact).navigationTitle("About Gevun").navigationBarTitleDisplayMode(.inline)

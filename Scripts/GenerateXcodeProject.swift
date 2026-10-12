@@ -20,7 +20,8 @@ for (index, path) in sources.enumerated() {
         "\(ref) = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"\(path)\"; sourceTree = SOURCE_ROOT; };"
     )
     objects.append("\(build) = {isa = PBXBuildFile; fileRef = \(ref); };")
-    sourceRefs.append(ref); sourceBuilds.append(build)
+    sourceRefs.append(ref)
+    sourceBuilds.append(build)
 }
 objects += [
     "\(id(300)) = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Gevun/Assets.xcassets; sourceTree = SOURCE_ROOT; };",

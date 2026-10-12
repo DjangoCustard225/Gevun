@@ -401,7 +401,7 @@ private struct QueueView: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         NavigationStack {
-            PlayerQueueView()
+            PlayerQueueView(onSelect: { dismiss() })
                 .padding(.horizontal, 16).padding(.top, 8).pageBackground()
                 .navigationTitle("Queue").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -414,6 +414,7 @@ private struct PlayerQueueView: View {
     @Environment(AppStore.self) private var store
     @EnvironmentObject private var interface: PlaybackInterfaceState
     private var player: PlayerStore { store.player }
+    let onSelect: () -> Void
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -437,7 +438,10 @@ private struct PlayerQueueView: View {
                         id: \.offset
                     ) { index, song in
                         VStack(spacing: 0) {
-                            SongRow(song: song) { player.select(index) }
+                            SongRow(song: song) {
+                                player.select(index)
+                                onSelect()
+                            }
                             Divider().overlay(theme.border)
                         }
                     }
