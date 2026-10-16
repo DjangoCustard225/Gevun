@@ -181,6 +181,16 @@ struct LyricsView: View {
             return
         }
         let session = store.sessionID
+        if let saved = store.downloads.lyrics(songID: song.id, instance: api.instance) {
+            versions = saved
+            loading = false
+            return
+        }
+        if !store.downloads.connected {
+            message = "Lyrics haven't been saved for this song. Connect to your server to load them."
+            loading = false
+            return
+        }
         do {
             let values = try await api.lyrics(for: song)
             guard revision == request, store.sessionID == session, player.current?.id == song.id, !Task.isCancelled

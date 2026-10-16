@@ -11,77 +11,106 @@ struct ConnectionView: View {
     @State private var address = ""
     @State private var username = ""
     @State private var password = ""
-    @State private var showName = false
+    @State private var path: [Field] = []
+    @State private var initialized = false
     @State private var busy = false
     @State private var message: String?
     @State private var request: Task<Void, Never>?
     @FocusState private var focus: Field?
-    private enum Field { case address, username, password }
+
+    private enum Field: Hashable {
+        case address, username, password, name
+        var title: String {
+            switch self {
+            case .address: "Server address"
+            case .username: "Username"
+            case .password: "Password"
+            case .name: "Instance name"
+            }
+        }
+        var next: Self? {
+            switch self {
+            case .address: .username
+            case .username: .password
+            case .password: .name
+            case .name: nil
+            }
+        }
+    }
 
     var body: some View {
+        NavigationStack(path: $path) {
+            page(.address)
+                .navigationDestination(for: Field.self) { page($0) }
+        }
+        .interactiveDismissDisabled(busy)
+        .onAppear {
+            guard !initialized else { return }
+            initialized = true
+            if let editing {
+                name = editing.name
+                address = editing.url.absoluteString
+                username = editing.username
+                password = editing.password
+            }
+        }
+        .onDisappear { request?.cancel() }
+    }
+
+    private func page(_ field: Field) -> some View {
         Form {
             Section {
-                TextField("https://music.example.com", text: $address)
-                    .textContentType(.URL).keyboardType(.URL).textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focus, equals: .address).submitLabel(.next).onSubmit { focus = .username }
-                    .accessibilityLabel("Server URL")
+                input(field)
             } header: {
-                Text("Navidrome server")
+                Text(field == .address ? "Navidrome server" : field.title)
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Include any base path; omit /rest.")
-                    if address.lowercased().hasPrefix("http://") {
-                        Text("HTTP is unencrypted. Use HTTPS for remote access.").foregroundStyle(.orange)
+                switch field {
+                case .address:
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Include any base path; omit /rest.")
+                        if address.lowercased().hasPrefix("http://") {
+                            Text("HTTP is unencrypted. Use HTTPS for remote access.").foregroundStyle(.orange)
+                        }
                     }
-                }
-            }.listRowBackground(theme.surface)
-
-            Section("Account") {
-                TextField("Username", text: $username)
-                    .textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .focused($focus, equals: .username).submitLabel(.next).onSubmit { focus = .password }
-                SecureField("Password", text: $password)
-                    .textContentType(.password).focused($focus, equals: .password).submitLabel(.go).onSubmit {
-                        connect()
-                    }
-            }.listRowBackground(theme.surface)
-
-            Section {
-                DisclosureGroup("Instance name", isExpanded: $showName) {
-                    TextField("Name (optional)", text: $name)
+                case .username:
+                    Text("Your Navidrome account username.")
+                case .password:
+                    Text("Use the password for your Navidrome account.")
+                case .name:
+                    Text("Optional. Leave blank to use your server's hostname.")
                 }
             }.listRowBackground(theme.surface)
 
             if let message {
                 Section {
                     Label(message, systemImage: "exclamationmark.circle").font(.subheadline).foregroundStyle(.orange)
-                        .accessibilityLabel("Connection failed. \(message)")
+                        .accessibilityLabel("Connection needs attention. \(message)")
                 }.listRowBackground(theme.surface)
             }
         }
         .listSectionSpacing(.compact)
         .disabled(busy)
         .pageBackground()
-        .safeAreaInset(edge: .bottom) {
-            Button(action: connect) {
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            Button {
+                advance(field)
+            } label: {
                 HStack(spacing: 8) {
                     if busy { ProgressView().tint(theme.background) }
-                    Text(busy ? "Connecting…" : editing == nil ? "Sign in" : "Save").font(.headline)
+                    Text(busy ? "Connecting…" : field == .name ? (editing == nil ? "Sign in" : "Save") : "Continue")
+                        .font(.headline)
                 }.frame(maxWidth: .infinity).padding(.vertical, 6)
             }
-            .buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 16)).foregroundStyle(
-                theme.background
-            )
-            .disabled(
-                busy || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty
-            )
+            .buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle(radius: 16))
+            .foregroundStyle(theme.background)
+            .disabled(busy || !canContinue(field))
             .frame(maxWidth: 520).padding(16).frame(maxWidth: .infinity)
-            .background(theme.background)
         }
-        .navigationTitle(firstConnection ? "Gevun" : editing == nil ? "Add instance" : "Edit instance")
-        .navigationBarTitleDisplayMode(firstConnection ? .large : .inline)
+        .scrollEdgeEffectStyle(.soft, for: .vertical)
+        .navigationTitle(field == .address && firstConnection ? "Gevun" : field.title)
+        .navigationBarTitleDisplayMode(field == .address && firstConnection ? .large : .inline)
+        .navigationBarBackButtonHidden(busy)
+        .defaultFocus($focus, field)
         .toolbar {
             if !firstConnection {
                 ToolbarItem(placement: .cancellationAction) {
@@ -95,23 +124,61 @@ struct ConnectionView: View {
                 Spacer(); Button("Done") { focus = nil }
             }
         }
-        .interactiveDismissDisabled(busy)
-        .onAppear {
-            if let editing {
-                name = editing.name
-                address = editing.url.absoluteString
-                username = editing.username
-                password = editing.password
-                showName = true
+    }
+
+    @ViewBuilder private func input(_ field: Field) -> some View {
+        switch field {
+        case .address:
+            TextField("https://music.example.com", text: $address)
+                .textContentType(.URL).keyboardType(.URL).textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focus, equals: .address).submitLabel(.next).onSubmit { advance(.address) }
+                .accessibilityLabel("Server URL")
+        case .username:
+            TextField("Username", text: $username)
+                .textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
+                .focused($focus, equals: .username).submitLabel(.next).onSubmit { advance(.username) }
+        case .password:
+            SecureField("Password", text: $password)
+                .textContentType(.password).focused($focus, equals: .password).submitLabel(.next)
+                .onSubmit { advance(.password) }
+        case .name:
+            TextField("Name (optional)", text: $name)
+                .focused($focus, equals: .name).submitLabel(.go).onSubmit { advance(.name) }
+                .accessibilityLabel("Instance name, optional")
+        }
+    }
+
+    private func canContinue(_ field: Field) -> Bool {
+        switch field {
+        case .address: !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .username: !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .password: !password.isEmpty
+        case .name: true
+        }
+    }
+
+    private func advance(_ field: Field) {
+        guard !busy, field == (path.last ?? .address), canContinue(field) else { return }
+        message = nil
+        if field == .address {
+            do {
+                address = try Instance.serverURL(from: address).absoluteString
+            } catch {
+                message = friendlyError(error)
+                return
             }
         }
-        .onDisappear { request?.cancel() }
+        focus = nil
+        if let next = field.next {
+            path.append(next)
+        } else {
+            connect()
+        }
     }
 
     private func connect() {
         guard !busy else { return }
-        focus = nil
-        message = nil
         do {
             let instance = try Instance(
                 id: editing?.id ?? UUID(), name: name, address: address, username: username, password: password)

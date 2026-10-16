@@ -17,6 +17,7 @@ A music player for your Navidrome library on iPhone and iPad.
 - Browse albums, artists, and songs, or search your library.
 - Listen in original quality with background playback and lock-screen controls.
 - Follow synced lyrics and tap a line to jump to it.
+- Download songs and albums for offline listening, in original quality or a smaller supported format.
 - Add songs to your queue, play next, and repeat tracks or albums.
 - Read artist biographies and discover similar artists.
 - Switch between multiple Navidrome servers.
@@ -30,7 +31,7 @@ Download [Gevun.ipa](https://github.com/DjangoCustard225/Gevun/releases/latest/d
 
 Open Gevun and sign in with your server address, username, and password. You can add more servers in Settings.
 
-Music streams from your server in its original format. Offline downloads aren't supported yet.
+Music streams from your server in its original format. Download songs or albums from their menus, then use the Downloaded filter to listen offline. Converted downloads depend on your server's transcoders and native format support on your device.
 
 ## Privacy
 

@@ -26,8 +26,18 @@ final class CoreTests: XCTestCase {
             "https://example.com/#fragment", "https://",
         ] {
             XCTAssertThrowsError(try makeInstance(invalid), invalid)
+            XCTAssertThrowsError(try Instance.serverURL(from: invalid), invalid)
         }
         XCTAssertThrowsError(try Instance(name: "", address: "https://example.com", username: " ", password: "x"))
+    }
+
+    func testServerAddressCanBeValidatedBeforeEnteringAccountDetails() throws {
+        let url = try Instance.serverURL(from: " HTTPS://example.com/navidrome/// ")
+        XCTAssertEqual(url.absoluteString, "https://example.com/navidrome")
+        let instance = try Instance(name: "", address: url.absoluteString, username: " listener ", password: "secret")
+        XCTAssertEqual(instance.name, "example.com")
+        XCTAssertEqual(instance.username, "listener")
+        XCTAssertEqual(instance.url, url)
     }
 
     func testAuthenticationURLPreservesBasePathAndEscapesQuery() throws {

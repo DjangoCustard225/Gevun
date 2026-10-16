@@ -195,6 +195,16 @@ public final class NavidromeAPI: @unchecked Sendable {
         try url("stream", parameters: [item("id", id), item("format", "raw"), item("maxBitRate", 0)])
     }
 
+    public func downloadURL(_ id: String, quality: DownloadQuality) throws -> URL {
+        // Navidrome's download extension uses `bitrate`, unlike stream's `maxBitRate`.
+        try url(
+            "download",
+            parameters: [
+                item("id", id), item("format", quality.format == .original ? "raw" : quality.format.rawValue),
+                item("bitrate", quality.bitrate),
+            ])
+    }
+
     public func artwork(_ id: String, size: Int = 600) async throws -> Data {
         let (data, response) = try await session.data(
             from: url("getCoverArt", parameters: [item("id", id), item("size", size)]))

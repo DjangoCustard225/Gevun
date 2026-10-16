@@ -402,10 +402,16 @@ private struct QueueView: View {
     var body: some View {
         NavigationStack {
             PlayerQueueView(onSelect: { dismiss() })
-                .padding(.horizontal, 16).padding(.top, 8).pageBackground()
+                .background(AppBackground())
+                .scrollContentBackground(.hidden)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: 20).accessibilityHidden(true)
+                }
+                .scrollEdgeEffectStyle(.soft, for: .vertical)
                 .navigationTitle("Queue").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .downloadPresentation(fromPlayer: true)
     }
 }
 
@@ -449,7 +455,7 @@ private struct PlayerQueueView: View {
                     Text("You're at the end of the queue.").font(.subheadline).foregroundStyle(theme.secondary).padding(
                         .vertical, 12)
                 }
-            }.padding(.bottom, 12)
+            }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
         }.scrollIndicators(.hidden).scrollEdgeEffectStyle(.soft, for: .all)
     }
 }

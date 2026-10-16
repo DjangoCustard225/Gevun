@@ -119,6 +119,7 @@ struct AlbumCard: View {
 
 struct AlbumGrid: View {
     let albums: [Album]
+    var downloadedOnly = false
     var body: some View {
         LazyVGrid(
             columns: [GridItem(.adaptive(minimum: 160, maximum: 280), spacing: 12, alignment: .top)],
@@ -126,12 +127,12 @@ struct AlbumGrid: View {
         ) {
             ForEach(albums) { album in
                 NavigationLink {
-                    AlbumDetailView(album: album)
+                    AlbumDetailView(album: album, downloadedOnly: downloadedOnly)
                 } label: {
                     AlbumCard(album: album)
                 }
                 .buttonStyle(.plain)
-                .contextMenu { AlbumActions(album: album) }
+                .contextMenu { AlbumActions(album: album, downloadedOnly: downloadedOnly) }
             }
         }
     }
@@ -140,9 +141,20 @@ struct AlbumGrid: View {
 struct AlbumActions: View {
     @Environment(AppStore.self) private var store
     let album: Album
+    var downloadedOnly = false
     var body: some View {
-        Button("Play", systemImage: "play.fill") { Task { await store.playAlbum(album) } }
-        Button("Shuffle", systemImage: "shuffle") { Task { await store.playAlbum(album, shuffle: true) } }
+        Button("Play", systemImage: "play.fill") { play(shuffle: false) }
+        Button("Shuffle", systemImage: "shuffle") { play(shuffle: true) }
+        Button("Download…", systemImage: "arrow.down.circle") { Task { await store.downloadAlbum(album) } }
+    }
+
+    private func play(shuffle: Bool) {
+        if downloadedOnly, let namespace = store.downloadNamespace {
+            let songs = store.downloads.savedSongs(albumID: album.id, namespace: namespace)
+            store.player.play(songs, at: shuffle ? Int.random(in: 0..<max(1, songs.count)) : 0, shuffle: shuffle)
+        } else {
+            Task { await store.playAlbum(album, shuffle: shuffle) }
+        }
     }
 }
 
@@ -193,6 +205,7 @@ struct SongRow: View {
                         ).lineLimit(2)
                         Text(song.artistName).font(.caption).foregroundStyle(theme.secondary).lineLimit(1)
                     }.frame(maxWidth: .infinity, alignment: .leading)
+                    DownloadedMark(songID: song.id)
                     Text(TimeLabel.clock(Double(song.duration ?? 0))).font(.caption).monospacedDigit().foregroundStyle(
                         theme.secondary)
                 }.frame(minHeight: 44).contentShape(Rectangle()).padding(.vertical, 4)
@@ -202,6 +215,7 @@ struct SongRow: View {
                     player.add(song, next: true)
                 }
                 Button("Add to queue", systemImage: "text.badge.plus") { player.add(song, next: false) }
+                SongDownloadActions(song: song)
             } label: {
                 Image(systemName: "ellipsis").font(.body).foregroundStyle(theme.secondary).frame(width: 36, height: 44)
                     .contentShape(Rectangle())

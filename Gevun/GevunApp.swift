@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct GevunApp: App {
+    @UIApplicationDelegateAdaptor(DownloadAppDelegate.self) private var delegate
     @State private var store = AppStore()
     var body: some Scene {
         WindowGroup {
@@ -29,6 +30,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var store = store
         appContent
+            .downloadPresentation()
             .background {
                 PlayerPresentation(store: store, isPresented: interface.expanded, reduceMotion: reduceMotion)
             }
@@ -36,7 +38,7 @@ struct RootView: View {
             .accessibilityHidden(interface.expanded)
             .background(AppBackground())
             .sheet(isPresented: $store.showConnection) {
-                NavigationStack { ConnectionView() }
+                ConnectionView()
                     .environment(store)
                     .presentationDragIndicator(.visible)
             }
@@ -49,6 +51,7 @@ struct RootView: View {
             .environment(\.appTheme, appearance.theme.oled)
             .tint(appearance.theme.accent)
             .onChange(of: store.sessionID) { _, _ in
+                store.downloadSelection = nil
                 searchPresented = false; searchQuery = ""; selection = .albums
             }
             .task(id: "\(interface.expanded):\(store.sessionID):\(interface.current?.coverArt ?? "")") {
@@ -62,7 +65,7 @@ struct RootView: View {
     private var appContent: some View {
         Group {
             if store.instances.isEmpty {
-                NavigationStack { ConnectionView(firstConnection: true) }
+                ConnectionView(firstConnection: true)
             } else {
                 TabView(selection: $selection) {
                     Tab("Albums", systemImage: "square.stack", value: .albums) {

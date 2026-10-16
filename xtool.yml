@@ -4,3 +4,4 @@ infoPath: Gevun/Info.plist
 iconPath: AppIcon.png
 resources:
   - Gevun/PrivacyInfo.xcprivacy
+  - Gevun/Resources/DownloadProbes.plist

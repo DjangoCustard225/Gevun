@@ -6,12 +6,25 @@ struct LibraryView: View {
     @Environment(AppStore.self) private var store
     private var player: PlayerStore { store.player }
     let category: LibraryCategory
-    private var loading: Bool { store.libraryLoading.contains(category) }
-    private var message: String? { store.libraryErrors[category] }
+    @State private var downloadedOnly = false
+    private var namespace: String { store.api.map { DownloadKey.namespace(for: $0.instance) } ?? "" }
+    private var albums: [Album] {
+        downloadedOnly ? store.downloads.library.downloadedAlbums(namespace: namespace) : store.albums
+    }
+    private var songs: [Song] {
+        downloadedOnly ? store.downloads.copies(namespace: namespace).map(\.song) : store.songs
+    }
+    private var loading: Bool { !downloadedOnly && store.libraryLoading.contains(category) }
+    private var message: String? { downloadedOnly ? nil : store.libraryErrors[category] }
     var body: some View {
         @Bindable var store = store
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if downloadedOnly && (category == .albums ? albums.isEmpty : songs.isEmpty) {
+                    ContentUnavailableView(
+                        "No downloads yet", systemImage: "arrow.down.circle",
+                        description: Text("Download songs or albums from their menus to listen offline."))
+                }
                 if let message {
                     ErrorCard(message: message) { Task { await store.loadLibrary(category) } }
                 }
@@ -26,35 +39,48 @@ struct LibraryView: View {
         }
         .navigationTitle(category.title)
         .toolbar {
-            if category == .albums {
+            if category == .albums || category == .songs {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("Sort albums", selection: $store.albumOrder) {
-                            ForEach(AlbumOrder.allCases) { order in Text(order.title).tag(order) }
+                        Section("Show") {
+                            Picker("Library", selection: $downloadedOnly) {
+                                Text("All").tag(false)
+                                Text("Downloaded").tag(true)
+                            }
+                        }
+                        if category == .albums && !downloadedOnly {
+                            Section("Sort") {
+                                Picker("Sort albums", selection: $store.albumOrder) {
+                                    ForEach(AlbumOrder.allCases) { order in Text(order.title).tag(order) }
+                                }
+                            }
                         }
                     } label: {
                         Image(systemName: "arrow.up.arrow.down")
-                    }.accessibilityLabel("Sort albums")
+                    }.accessibilityLabel(category == .albums ? "Sort and filter albums" : "Filter songs")
                 }
             }
         }
         .pageBackground()
-        .refreshable { await store.loadLibrary(category) }
-        .task(id: "\(category.rawValue):\(category == .albums ? store.albumOrder.rawValue : ""):\(store.sessionID)") {
-            await store.ensureLibrary(category)
+        .refreshable { if !downloadedOnly { await store.loadLibrary(category) } }
+        .task(
+            id:
+                "\(category.rawValue):\(category == .albums ? store.albumOrder.rawValue : ""):\(store.sessionID):\(downloadedOnly)"
+        ) {
+            if !downloadedOnly { await store.ensureLibrary(category) }
         }
     }
 
     @ViewBuilder private var content: some View {
         switch category {
         case .albums:
-            if !store.albums.isEmpty {
-                AlbumGrid(albums: store.albums)
-                if store.moreAlbums && message == nil {
+            if !albums.isEmpty {
+                AlbumGrid(albums: albums, downloadedOnly: downloadedOnly)
+                if !downloadedOnly && store.moreAlbums && message == nil {
                     ScrollPaginationTrigger(enabled: !loading) { await store.loadLibrary(.albums, more: true) }
                         .id("\(store.sessionID):\(store.albumOrder.rawValue):\(store.albums.count)")
                 }
-            } else {
+            } else if !downloadedOnly {
                 empty(
                     "No albums yet", symbol: "square.stack",
                     message: "Albums in your server's music library will appear here.")
@@ -77,20 +103,20 @@ struct LibraryView: View {
                 }
             }
         case .songs:
-            if store.songs.isEmpty {
+            if songs.isEmpty && !downloadedOnly {
                 empty(
                     "No songs yet", symbol: "music.note",
                     message: "Songs in your server's music library will appear here.")
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(store.songs.enumerated()), id: \.element.id) { index, song in
+                    ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
                         VStack(spacing: 0) {
-                            SongRow(song: song) { player.play(store.songs, at: index) }
+                            SongRow(song: song) { player.play(songs, at: index) }
                             Divider().overlay(theme.border).padding(.leading, 66)
                         }
                     }
                 }
-                if store.moreSongs && message == nil {
+                if !downloadedOnly && store.moreSongs && message == nil {
                     ScrollPaginationTrigger(enabled: !loading) { await store.loadLibrary(.songs, more: true) }
                         .id("\(store.sessionID):\(store.songs.count)")
                 }

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Gevun headphones</title>
+  <defs>
+    <linearGradient id="pearl" gradientUnits="userSpaceOnUse" x1="154" y1="0" x2="819" y2="1024">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.38" stop-color="#FFF5EF"/>
+      <stop offset="0.70" stop-color="#F6D5CC"/>
+      <stop offset="1" stop-color="#FFF0E7"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0 20)" fill="none" stroke="url(#pearl)" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M264 568 V480 A248 248 0 0 1 760 480 V568"/>
+    <rect x="264" y="520" width="116" height="224" rx="44"/>
+    <rect x="644" y="520" width="116" height="224" rx="44"/>
+  </g>
+</svg>

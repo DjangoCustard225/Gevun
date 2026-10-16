@@ -53,18 +53,24 @@ struct SettingsView: View {
 
             Section {
                 Toggle("Listening history", isOn: $scrobble)
+                    .tint(theme.switchTint)
             } footer: {
                 Text("Report plays to Navidrome and its configured scrobbling services.")
             }
             .listRowBackground(theme.surface)
 
             Section {
+                NavigationLink {
+                    DownloadsSettingsView()
+                } label: {
+                    Label("Downloads", systemImage: "arrow.down.circle")
+                }
                 NavigationLink("About Gevun") { AboutGevunView() }
             }.listRowBackground(theme.surface)
         }
         .listSectionSpacing(.compact)
         .navigationTitle("Settings").pageBackground()
-        .sheet(item: $editing) { instance in NavigationStack { ConnectionView(editing: instance) }.environment(store) }
+        .sheet(item: $editing) { instance in ConnectionView(editing: instance).environment(store) }
         .confirmationDialog(
             "Remove \(deleting?.name ?? "instance")?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
@@ -77,7 +83,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
-            Text("Its saved credentials will be removed from this device.")
+            Text("Its saved credentials and downloaded music will be removed from this device.")
         }
     }
 
@@ -98,7 +104,6 @@ struct SettingsView: View {
 
 private struct AboutGevunView: View {
     @Environment(\.appTheme) private var theme
-    @Environment(AppStore.self) private var store
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
@@ -126,10 +131,6 @@ private struct AboutGevunView: View {
                 Text(
                     "Credentials are saved in Keychain. Music streams directly from your server. Gevun has no analytics or advertising."
                 )
-                Button("Clear artwork cache", systemImage: "trash") {
-                    store.artwork.clear()
-                    store.notice = "Artwork memory cache cleared."
-                }
             }.listRowBackground(theme.surface)
         }.listSectionSpacing(.compact).navigationTitle("About Gevun").navigationBarTitleDisplayMode(.inline)
             .pageBackground()

@@ -9,7 +9,7 @@ let package = Package(
     targets: [
         .target(
             name: "Gevun", dependencies: [.product(name: "GevunCore", package: "Core")],
-            path: "Gevun", exclude: ["Info.plist", "PrivacyInfo.xcprivacy", "Assets.xcassets"])
+            path: "Gevun", exclude: ["Info.plist", "PrivacyInfo.xcprivacy", "Assets.xcassets", "Resources"])
     ],
     swiftLanguageModes: [.v5]
 )

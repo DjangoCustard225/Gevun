@@ -31,15 +31,19 @@ objects += [
     "\(id(304)) = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Gevun/Info.plist; sourceTree = SOURCE_ROOT; };",
     "\(id(305)) = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Gevun.app; sourceTree = BUILT_PRODUCTS_DIR; };",
     "\(id(306)) = {isa = PBXBuildFile; productRef = \(id(401)); };",
+    "\(id(307)) = {isa = PBXFileReference; lastKnownFileType = file; path = Gevun/Resources/DownloadProbes.plist; sourceTree = SOURCE_ROOT; };",
+    "\(id(308)) = {isa = PBXBuildFile; fileRef = \(id(307)); };",
+    "\(id(309)) = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = GevunIcon.icon; sourceTree = SOURCE_ROOT; };",
+    "\(id(310)) = {isa = PBXBuildFile; fileRef = \(id(309)); };",
     "\(id(400)) = {isa = XCLocalSwiftPackageReference; relativePath = Core; };",
     "\(id(401)) = {isa = XCSwiftPackageProductDependency; package = \(id(400)); productName = GevunCore; };",
     "\(id(1)) = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; }; buildConfigurationList = \(id(10)); compatibilityVersion = \"Xcode 14.0\"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = \(id(2)); productRefGroup = \(id(3)); projectDirPath = \"\"; projectRoot = \"\"; packageReferences = (\(id(400))); targets = (\(id(4))); };",
-    "\(id(2)) = {isa = PBXGroup; children = (\((sourceRefs + [id(300), id(302), id(304), id(3)]).joined(separator: ","))); sourceTree = \"<group>\"; };",
+    "\(id(2)) = {isa = PBXGroup; children = (\((sourceRefs + [id(300), id(302), id(304), id(307), id(309), id(3)]).joined(separator: ","))); sourceTree = \"<group>\"; };",
     "\(id(3)) = {isa = PBXGroup; children = (\(id(305))); name = Products; sourceTree = \"<group>\"; };",
     "\(id(4)) = {isa = PBXNativeTarget; buildConfigurationList = \(id(11)); buildPhases = (\(id(5)), \(id(6)), \(id(7))); buildRules = (); dependencies = (); name = Gevun; packageProductDependencies = (\(id(401))); productName = Gevun; productReference = \(id(305)); productType = \"com.apple.product-type.application\"; };",
     "\(id(5)) = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (\(sourceBuilds.joined(separator: ","))); runOnlyForDeploymentPostprocessing = 0; };",
     "\(id(6)) = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (\(id(306))); runOnlyForDeploymentPostprocessing = 0; };",
-    "\(id(7)) = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (\(id(301)), \(id(303))); runOnlyForDeploymentPostprocessing = 0; };",
+    "\(id(7)) = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (\(id(301)), \(id(303)), \(id(308)), \(id(310))); runOnlyForDeploymentPostprocessing = 0; };",
     "\(id(10)) = {isa = XCConfigurationList; buildConfigurations = (\(id(12)), \(id(13))); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };",
     "\(id(11)) = {isa = XCConfigurationList; buildConfigurations = (\(id(14)), \(id(15))); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };",
 ]
@@ -47,7 +51,7 @@ for (index, name) in ["Debug", "Release"].enumerated() {
     let projectSettings =
         "CLANG_ENABLE_MODULES = YES; SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 27.0; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = \"\(index == 0 ? "-Onone" : "-O")\"; DEBUG_INFORMATION_FORMAT = \"\(index == 0 ? "dwarf" : "dwarf-with-dsym")\"; \(index == 0 ? "SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;" : "")"
     let appSettings =
-        "ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = \(buildNumber); GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Gevun/Info.plist; MARKETING_VERSION = \(appVersion); PRODUCT_BUNDLE_IDENTIFIER = app.gevun.music; PRODUCT_NAME = \"$(TARGET_NAME)\"; TARGETED_DEVICE_FAMILY = \"1,2\"; LD_RUNPATH_SEARCH_PATHS = \"$(inherited) @executable_path/Frameworks\"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = \"UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight\"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = \"UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight\";"
+        "ASSETCATALOG_COMPILER_APPICON_NAME = GevunIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = \(buildNumber); GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Gevun/Info.plist; MARKETING_VERSION = \(appVersion); PRODUCT_BUNDLE_IDENTIFIER = app.gevun.music; PRODUCT_NAME = \"$(TARGET_NAME)\"; TARGETED_DEVICE_FAMILY = \"1,2\"; LD_RUNPATH_SEARCH_PATHS = \"$(inherited) @executable_path/Frameworks\"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = \"UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight\"; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = \"UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight\";"
     objects.append(
         "\(id(12 + index)) = {isa = XCBuildConfiguration; buildSettings = {\(projectSettings)}; name = \(name); };")
     objects.append(

@@ -8,6 +8,19 @@ public struct Instance: Codable, Identifiable, Equatable, Sendable {
     public var password: String
 
     public init(id: UUID = UUID(), name: String, address: String, username: String, password: String) throws {
+        let url = try Self.serverURL(from: address)
+        let user = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !user.isEmpty, !password.isEmpty else { throw GevunError.missingCredentials }
+        self.id = id
+        self.name =
+            name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (url.host ?? "Navidrome") : name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.url = url
+        self.username = user
+        self.password = password
+    }
+
+    public static func serverURL(from address: String) throws -> URL {
         let address = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var parts = URLComponents(string: address),
             ["https", "http"].contains(parts.scheme?.lowercased() ?? ""),
@@ -19,15 +32,7 @@ public struct Instance: Codable, Identifiable, Equatable, Sendable {
         parts.scheme = parts.scheme?.lowercased()
         while parts.path.hasSuffix("/") { parts.path.removeLast() }
         guard let url = parts.url else { throw GevunError.invalidAddress }
-        let user = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !user.isEmpty, !password.isEmpty else { throw GevunError.missingCredentials }
-        self.id = id
-        self.name =
-            name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? host : name.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.url = url
-        self.username = user
-        self.password = password
+        return url
     }
 }
 
@@ -72,6 +77,7 @@ public struct Song: Codable, Identifiable, Hashable, Sendable {
     public let discNumber: Int?
     public let suffix: String?
     public let bitRate: Int?
+    public let size: Int64?
     public var starred: String?
     public var artistName: String {
         ArtistCredit.display(displayAlbumArtist, credits: albumArtists, fallback: albumArtist)

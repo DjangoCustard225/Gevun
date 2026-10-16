@@ -12,6 +12,9 @@ struct AppTheme {
     let playerSecondary: Color
     let usesOLEDBackground: Bool
 
+    // Native switch thumbs stay light, so their tracks need a darker accent.
+    var switchTint: Color { accent.mix(with: .black, by: 0.45) }
+
     var oled: AppTheme {
         AppTheme(
             background: .black, surface: Color(white: 0.055), elevated: Color(white: 0.095),

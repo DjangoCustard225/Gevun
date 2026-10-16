@@ -1,5 +1,13 @@
 # Building Gevun
 
+## GitHub Actions
+
+Open the repository's **Actions** tab, select **Build IPA**, then choose **Run workflow**. The workflow uses GitHub's standard Xcode 27 Mac runner, runs the core tests, and builds an unsigned device app.
+
+Download the **Gevun** artifact from the completed run and extract `Gevun.ipa`. Sign it with your sideloading tool before installing. Artifacts expire after seven days.
+
+The **Gevun-icon-previews** artifact contains the default, dark, clear light/dark, and tinted light/dark icon previews rendered by Apple's Icon Composer.
+
 ## Xcode
 
 Use Xcode 27 with Swift 6.4 or later. Open `Gevun.xcodeproj`, select your signing team and run the Gevun scheme.
@@ -9,6 +17,10 @@ The app version and build number live in `Gevun/Info.plist`. The About screen re
 ```sh
 swift Scripts/GenerateXcodeProject.swift
 ```
+
+For an unsigned IPA on a Mac, run `bash Scripts/BuildIPA.sh`. It writes `dist/Gevun.ipa`.
+
+Xcode builds use `GevunIcon.icon`, with the existing headphone artwork adapted for native clear and tinted appearances. The PNG icon remains available for Linux builds.
 
 ## Linux
 

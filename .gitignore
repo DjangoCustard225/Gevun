@@ -5,6 +5,8 @@ xtool/
 *.xcuserstate
 xcuserdata/
 .bsp/
+build/
+dist/
 *.ipa
 *.dSYM/
 .env

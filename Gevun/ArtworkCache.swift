@@ -3,6 +3,7 @@ import GevunCore
 
 @MainActor
 final class ArtworkCache {
+    weak var downloads: DownloadStore?
     private let cache = NSCache<NSString, UIImage>()
     private var tasks: [String: Task<UIImage?, Never>] = [:]
     private var generation = UUID()
@@ -20,7 +21,10 @@ final class ArtworkCache {
         if let task = tasks[key] { return await task.value }
         let generation = generation
         let task = Task<UIImage?, Never> {
-            guard let data = try? await api.artwork(id, size: size), !Task.isCancelled,
+            let local = downloads.flatMap { try? Data(contentsOf: $0.artworkURL(id, instance: api.instance)) }
+            let data: Data?
+            if let local { data = local } else { data = try? await api.artwork(id, size: size) }
+            guard let data, !Task.isCancelled,
                 let source = UIImage(data: data)
             else { return nil }
             // UIKit decodes and downsamples asynchronously before the image reaches a frame.

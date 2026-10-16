@@ -6,6 +6,7 @@ struct AlbumDetailView: View {
     @Environment(AppStore.self) private var store
     private var player: PlayerStore { store.player }
     let album: Album
+    var downloadedOnly = false
     @State private var detail: Album?
     @State private var songs: [Song] = []
     @State private var loading = true
@@ -63,6 +64,12 @@ struct AlbumDetailView: View {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(.white)
                 }.accessibilityLabel("Share album")
                 Menu {
+                    Button("Download…", systemImage: "arrow.down.circle") {
+                        if let instance = store.api?.instance {
+                            store.downloadSelection = DownloadSelection(
+                                songs: songs, album: displayedAlbum, instance: instance)
+                        }
+                    }
                     Button("Play album", systemImage: "play.fill") { player.play(songs) }
                     Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") {
                         if player.current == nil {
@@ -81,6 +88,11 @@ struct AlbumDetailView: View {
             }
         }
         .task(id: "\(store.sessionID):\(album.id)") { await load() }
+        .onChange(of: store.downloads.savedKeys) { _, _ in
+            if downloadedOnly, let namespace = store.downloadNamespace {
+                songs = store.downloads.savedSongs(albumID: album.id, namespace: namespace)
+            }
+        }
     }
 
     private var albumHeading: some View {
@@ -152,13 +164,30 @@ struct AlbumDetailView: View {
         loading = true
         message = nil
         defer { if revision == token { loading = false } }
+        let namespace = DownloadKey.namespace(for: api.instance)
+        let saved = store.downloads.savedSongs(albumID: album.id, namespace: namespace)
+        if downloadedOnly || !store.downloads.connected {
+            detail = store.downloads.savedAlbum(album.id, namespace: namespace) ?? album
+            songs = saved
+            if saved.isEmpty {
+                message = "No songs from this album are downloaded. Connect to your server to load them."
+            }
+            return
+        }
         do {
             let value = try await api.album(album.id)
             guard !Task.isCancelled, revision == token, store.api === api else { return }
             detail = value
             songs = value.songs
         } catch {
-            if !Task.isCancelled, revision == token, store.api === api { message = friendlyError(error) }
+            if !Task.isCancelled, revision == token, store.api === api {
+                if !saved.isEmpty {
+                    detail = store.downloads.savedAlbum(album.id, namespace: namespace) ?? album
+                    songs = saved
+                } else {
+                    message = friendlyError(error)
+                }
+            }
         }
     }
 }
@@ -191,6 +220,7 @@ private struct AlbumTrackRow: View {
                             Text(song.artistName).font(.caption).foregroundStyle(theme.secondary).lineLimit(1)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
+                    DownloadedMark(songID: song.id)
                     Text(TimeLabel.clock(Double(song.duration ?? 0))).font(.caption).monospacedDigit()
                         .foregroundStyle(theme.secondary)
                 }.frame(minHeight: 56).contentShape(Rectangle()).padding(.vertical, 4)
@@ -200,6 +230,7 @@ private struct AlbumTrackRow: View {
                     player.add(song, next: true)
                 }
                 Button("Add to queue", systemImage: "text.badge.plus") { player.add(song, next: false) }
+                SongDownloadActions(song: song)
             } label: {
                 Image(systemName: "ellipsis").font(.body).foregroundStyle(theme.secondary)
                     .frame(width: 36, height: 44).contentShape(Rectangle())

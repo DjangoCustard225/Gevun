@@ -1,0 +1,24 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.95294,0.54510,0.43922,1.00000",
+      "srgb:0.74902,0.25098,0.33333,1.00000"
+    ]
+  },
+  "fill-specializations": [
+    { "appearance": "dark", "value": "system-dark" },
+    { "appearance": "tinted", "value": "automatic" }
+  ],
+  "groups": [
+    {
+      "name": "Pearl headphones",
+      "layers": [
+        { "name": "Headphone outline", "image-name": "Headphones.svg" }
+      ],
+      "specular": true,
+      "shadow": { "kind": "neutral", "opacity": 0.2 },
+      "translucency": { "enabled": true, "value": 0.15 }
+    }
+  ],
+  "supported-platforms": { "squares": "shared" }
+}

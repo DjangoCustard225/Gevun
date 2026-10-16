@@ -50,6 +50,7 @@ final class PlayerStore: ObservableObject {
     private var artworkTask: Task<Void, Never>?
     private var assetTimingTask: Task<Void, Never>?
     private let artwork: ArtworkCache
+    private let downloads: DownloadStore
     private var mediaArtwork: MPMediaItemArtwork?
     private var artworkRevision: UUID?
     private var publication = NowPlayingPublication()
@@ -61,8 +62,9 @@ final class PlayerStore: ObservableObject {
     private var endDuringSeek = false
     var current: Song? { queue.current }
 
-    init(artwork: ArtworkCache) {
+    init(artwork: ArtworkCache, downloads: DownloadStore) {
         self.artwork = artwork
+        self.downloads = downloads
         configurePlayerObservation()
         configureAudioObservation()
         configureRemote()
@@ -331,8 +333,13 @@ final class PlayerStore: ObservableObject {
         player.replaceCurrentItem(with: nil)
         do {
             try activateAudio()
+            let localURL = downloads.localURL(songID: song.id, instance: api.instance)
+            guard localURL != nil || downloads.connected else {
+                fail("This song isn't downloaded. Connect to your server to play it.")
+                return
+            }
             let asset = AVURLAsset(
-                url: try api.streamURL(song.id),
+                url: try localURL ?? api.streamURL(song.id),
                 options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
             let item = AVPlayerItem(asset: asset)
             itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
@@ -341,7 +348,7 @@ final class PlayerStore: ObservableObject {
                     self.refreshTiming(for: item)
                     if item.status == .failed {
                         self.fail(
-                            "This original file couldn't be played. Check the server connection and that its format is supported by iOS."
+                            "This file couldn't be played. Check the connection or download it again in a supported format."
                         )
                     }
                 }

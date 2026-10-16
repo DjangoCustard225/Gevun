@@ -7,6 +7,7 @@ import GevunCore
 final class AppStore {
     private(set) var instances: [Instance] = []
     private(set) var activeID: UUID?
+    private(set) var downloadNamespace: String?
     private(set) var api: NavidromeAPI?
     private(set) var sessionID = UUID()
     private(set) var albums: [Album] = []
@@ -22,8 +23,10 @@ final class AppStore {
     var notice: String?
     var showConnection = false
     var serverVersion = ""
+    var downloadSelection: DownloadSelection?
     let player: PlayerStore
     let artwork: ArtworkCache
+    let downloads: DownloadStore
     let appearance = ArtworkAppearance()
     @ObservationIgnored private var libraryRevisions: [LibraryCategory: UUID] = [:]
     @ObservationIgnored private var albumOffset = 0
@@ -31,9 +34,12 @@ final class AppStore {
     @ObservationIgnored private var loadedAlbumOrder: AlbumOrder?
 
     init() {
+        let downloads = DownloadStore()
         let artwork = ArtworkCache()
+        self.downloads = downloads
+        artwork.downloads = downloads
         self.artwork = artwork
-        self.player = PlayerStore(artwork: artwork)
+        self.player = PlayerStore(artwork: artwork, downloads: downloads)
         UserDefaults.standard.removeObject(forKey: "streamBitRate")
         do {
             instances = try Credentials.read()
@@ -41,10 +47,13 @@ final class AppStore {
             let instance = instances.first { $0.id == selected } ?? instances.first
             activeID = instance?.id
             if let instance {
+                downloadNamespace = DownloadKey.namespace(for: instance)
                 api = NavidromeAPI(instance: instance)
                 player.configure(api: api)
             }
         } catch { notice = error.localizedDescription }
+        downloads.configure(instances: instances)
+        DownloadAppDelegate.attach(downloads)
     }
 
     func connect(_ instance: Instance) async throws {
@@ -59,6 +68,7 @@ final class AppStore {
         }
         try Credentials.save(saved)
         instances = saved
+        downloads.configure(instances: saved)
         activate(instance.id)
         serverVersion = version
     }
@@ -67,6 +77,7 @@ final class AppStore {
         guard let instance = instances.first(where: { $0.id == id }) else { return }
         player.stop()
         activeID = id
+        downloadNamespace = DownloadKey.namespace(for: instance)
         api = NavidromeAPI(instance: instance)
         UserDefaults.standard.set(id.uuidString, forKey: "activeInstance")
         player.configure(api: api)
@@ -77,6 +88,7 @@ final class AppStore {
         let saved = instances.filter { $0.id != id }
         try Credentials.save(saved)
         instances = saved
+        downloads.configure(instances: saved)
         if activeID == id {
             if let first = saved.first {
                 activate(first.id)
@@ -84,6 +96,7 @@ final class AppStore {
                 player.stop()
                 api = nil
                 activeID = nil
+                downloadNamespace = nil
                 UserDefaults.standard.removeObject(forKey: "activeInstance")
                 clearLibrary()
             }
@@ -171,14 +184,37 @@ final class AppStore {
         guard let api else { return }
         let session = sessionID
         do {
-            let detail = try await api.album(album.id)
+            let tracks: [Song]
+            if !downloads.connected {
+                tracks = downloads.savedSongs(albumID: album.id, namespace: DownloadKey.namespace(for: api.instance))
+            } else {
+                tracks = try await api.album(album.id).songs
+            }
             guard sessionID == session, !Task.isCancelled else { return }
-            guard !detail.songs.isEmpty else {
+            guard !tracks.isEmpty else {
                 notice = "This album has no available tracks."
                 return
             }
-            player.play(detail.songs, at: shuffle ? Int.random(in: 0..<detail.songs.count) : 0, shuffle: shuffle)
-        } catch { if sessionID == session, !Task.isCancelled { notice = friendlyError(error) } }
+            player.play(tracks, at: shuffle ? Int.random(in: 0..<tracks.count) : 0, shuffle: shuffle)
+        } catch {
+            if sessionID == session, !Task.isCancelled {
+                let saved = downloads.savedSongs(albumID: album.id, namespace: DownloadKey.namespace(for: api.instance))
+                if saved.isEmpty {
+                    notice = friendlyError(error)
+                } else {
+                    player.play(saved, at: shuffle ? Int.random(in: 0..<saved.count) : 0, shuffle: shuffle)
+                }
+            }
+        }
+    }
+
+    func downloadAlbum(_ album: Album) async {
+        guard let api else { return }
+        do {
+            let detail = try await api.album(album.id)
+            guard self.api === api, !Task.isCancelled else { return }
+            downloadSelection = DownloadSelection(songs: detail.songs, album: detail, instance: api.instance)
+        } catch { if self.api === api { notice = friendlyError(error) } }
     }
 }
 
