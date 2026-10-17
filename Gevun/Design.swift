@@ -110,7 +110,7 @@ struct AlbumCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             ArtworkView(id: album.coverArt)
-            Text(album.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+            Text(album.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
             Text(album.artistName).font(.caption).foregroundStyle(theme.secondary).lineLimit(1)
         }.frame(maxWidth: .infinity, alignment: .topLeading)
             .accessibilityElement(children: .combine)
@@ -145,7 +145,7 @@ struct AlbumActions: View {
     var body: some View {
         Button("Play", systemImage: "play.fill") { play(shuffle: false) }
         Button("Shuffle", systemImage: "shuffle") { play(shuffle: true) }
-        Button("Download…", systemImage: "arrow.down.circle") { Task { await store.downloadAlbum(album) } }
+        Button("Download", systemImage: "arrow.down.circle") { Task { await store.downloadAlbum(album) } }
     }
 
     private func play(shuffle: Bool) {

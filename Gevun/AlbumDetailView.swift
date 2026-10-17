@@ -64,7 +64,7 @@ struct AlbumDetailView: View {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(.white)
                 }.accessibilityLabel("Share album")
                 Menu {
-                    Button("Download…", systemImage: "arrow.down.circle") {
+                    Button("Download", systemImage: "arrow.down.circle") {
                         if let instance = store.api?.instance {
                             store.downloadSelection = DownloadSelection(
                                 songs: songs, album: displayedAlbum, instance: instance)

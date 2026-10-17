@@ -111,6 +111,31 @@ final class CoreTests: XCTestCase {
         } catch { XCTAssertEqual(error as? GevunError, .http(503)) }
     }
 
+    func testArtistRequestsBypassCachedResponses() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","artist":{"id":"a1","name":"Artist"}}}"#
+        _ = try await api.artist("a1")
+        XCTAssertEqual(FixtureProtocol.lastRequest?.cachePolicy, .reloadIgnoringLocalCacheData)
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","artistInfo2":{}}}"#
+        _ = try await api.artistInfo("a1")
+        XCTAssertEqual(FixtureProtocol.lastRequest?.cachePolicy, .reloadIgnoringLocalCacheData)
+    }
+
+    func testPlayerAlbumDestinationUsesAlbumArtistIdentity() throws {
+        let songs = try JSONDecoder().decode(
+            [Song].self,
+            from: Data(
+                #"[{"id":"s1","title":"Track","albumId":"record","album":"Record","artist":"Guest","artistId":"guest","albumArtists":[{"id":"band","name":"Band"}]},{"id":"s2","title":"Track","albumId":"record","artist":"Guest","artistId":"guest","albumArtist":"Band"},{"id":"s3","title":"Track"}]"#
+                    .utf8))
+        let album = try XCTUnwrap(Album(song: songs[0]))
+        XCTAssertEqual(album.id, "record")
+        XCTAssertEqual(album.name, "Record")
+        XCTAssertEqual(album.artistName, "Band")
+        XCTAssertEqual(album.artistId, "band")
+        XCTAssertNil(Album(song: songs[1])?.artistId)
+        XCTAssertNil(Album(song: songs[2]))
+    }
+
     func testAlbumArtistDisplayPrecedence() throws {
         let song = try JSONDecoder().decode(
             Song.self,

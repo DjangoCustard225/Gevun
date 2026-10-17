@@ -61,8 +61,11 @@ public final class NavidromeAPI: @unchecked Sendable {
         return result
     }
 
-    private func request(_ endpoint: String, _ parameters: [URLQueryItem] = []) async throws -> Response {
-        var request = URLRequest(url: try url(endpoint, parameters: parameters))
+    private func request(
+        _ endpoint: String, _ parameters: [URLQueryItem] = [],
+        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
+    ) async throws -> Response {
+        var request = URLRequest(url: try url(endpoint, parameters: parameters), cachePolicy: cachePolicy)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Task.checkCancellation()
@@ -106,7 +109,10 @@ public final class NavidromeAPI: @unchecked Sendable {
     }
 
     public func artist(_ id: String) async throws -> Artist {
-        guard let artist = try await request("getArtist", [item("id", id)]).artist else {
+        guard
+            let artist = try await request("getArtist", [item("id", id)], cachePolicy: .reloadIgnoringLocalCacheData)
+                .artist
+        else {
             throw GevunError.invalidResponse
         }
         return artist
@@ -115,7 +121,8 @@ public final class NavidromeAPI: @unchecked Sendable {
     public func artistInfo(_ id: String) async throws -> ArtistInfo {
         guard
             let info = try await request(
-                "getArtistInfo2", [item("id", id), item("count", 12), item("includeNotPresent", "false")]
+                "getArtistInfo2", [item("id", id), item("count", 12), item("includeNotPresent", "false")],
+                cachePolicy: .reloadIgnoringLocalCacheData
             ).artistInfo2
         else { throw GevunError.invalidResponse }
         return info

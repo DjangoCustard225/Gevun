@@ -2,6 +2,11 @@ import SwiftUI
 import Observation
 import GevunCore
 
+enum PlayerDestination {
+    case album(Album)
+    case artist(Artist)
+}
+
 @MainActor
 @Observable
 final class AppStore {
@@ -24,6 +29,7 @@ final class AppStore {
     var showConnection = false
     var serverVersion = ""
     var downloadSelection: DownloadSelection?
+    var playerDestination: PlayerDestination?
     let player: PlayerStore
     let artwork: ArtworkCache
     let downloads: DownloadStore

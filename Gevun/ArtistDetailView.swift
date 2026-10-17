@@ -15,7 +15,7 @@ struct ArtistDetailView: View {
     @State private var infoFailed = false
     @State private var revision = UUID()
 
-    private var albums: [Album] { detail?.albums ?? artist.albums }
+    private var albums: [Album] { detail?.albums ?? [] }
     private var related: [Artist] { info?.relatedArtists(excluding: artist.id) ?? [] }
 
     var body: some View {
@@ -153,6 +153,9 @@ struct ArtistDetailView: View {
         guard let api = store.api else { return }
         let token = UUID()
         revision = token
+        detail = nil
+        info = nil
+        biography = nil
         loading = true
         infoLoading = true
         message = nil

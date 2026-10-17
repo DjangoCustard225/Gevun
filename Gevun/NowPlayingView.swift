@@ -67,6 +67,8 @@ struct NowPlayingView: View {
     @ScaledMetric(relativeTo: .body) private var metadataHeight: CGFloat = 94
     @ScaledMetric(relativeTo: .caption) private var playbackErrorHeight: CGFloat = 76
     @State private var presentedSheet: PlayerSheet?
+    @State private var openingArtist = false
+    @State private var artistTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometry in
@@ -83,10 +85,22 @@ struct NowPlayingView: View {
                                 .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
                             PlayerSeekView()
                             VStack(spacing: 4) {
-                                Text(song.artistName).font(.body).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                                Button {
+                                    artistTask = Task { await openArtist(song) }
+                                } label: {
+                                    Text(song.artistName).font(.body).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                                }.buttonStyle(.plain).disabled(openingArtist).accessibilityHint("Open artist page")
                                 Text(song.title).font(.headline.weight(.bold)).lineLimit(2)
-                                if let album = song.album, !album.isEmpty {
-                                    Text(album).font(.body).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                                if let albumName = song.album, !albumName.isEmpty {
+                                    Button {
+                                        if let destination = album(for: song) {
+                                            store.playerDestination = .album(destination)
+                                            close()
+                                        }
+                                    } label: {
+                                        Text(albumName).font(.body).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                                    }.buttonStyle(.plain).disabled(song.albumId == nil)
+                                        .accessibilityHint("Open album page")
                                 }
                             }.multilineTextAlignment(.center).frame(maxWidth: .infinity)
                                 .frame(height: metadataHeight)
@@ -117,7 +131,10 @@ struct NowPlayingView: View {
         .contentShape(Rectangle())
         .onChange(of: reduceMotion) { _, _ in motion.interrupt() }
         .onChange(of: presentedSheet) { _, sheet in if sheet != nil { motion.interrupt() } }
-        .onDisappear { motion.stop() }
+        .onDisappear {
+            artistTask?.cancel()
+            motion.stop()
+        }
         .accessibilityAction(.escape) { close() }
         .accessibilityAction(named: Text("Close player")) { close() }
         .accessibilityAction(named: Text("Show lyrics")) { presentedSheet = .lyrics }
@@ -195,7 +212,42 @@ struct NowPlayingView: View {
     }
 
     private func close() {
+        artistTask?.cancel()
         onClose(0)
+    }
+
+    private func album(for song: Song) -> Album? {
+        if let album = store.albums.first(where: { $0.id == song.albumId }) { return album }
+        if let id = song.albumId, let namespace = store.downloadNamespace,
+            let album = store.downloads.savedAlbum(id, namespace: namespace)
+        {
+            return album
+        }
+        return Album(song: song)
+    }
+
+    private func openArtist(_ song: Song) async {
+        guard !openingArtist else { return }
+        openingArtist = true
+        defer { openingArtist = false }
+        let session = store.sessionID
+        let album = album(for: song)
+        let known = store.artists.first { $0.name.localizedCaseInsensitiveCompare(song.artistName) == .orderedSame }
+        var id = song.albumArtists?.compactMap(\.id).first ?? album?.artistId ?? known?.id
+        if id == nil, let albumID = song.albumId, let api = store.api {
+            id = try? await api.album(albumID).artistId
+        }
+        if id == nil, song.artistName == song.artist { id = song.artistId }
+        guard !Task.isCancelled, store.sessionID == session, interface.current?.id == song.id, interface.expanded
+        else { return }
+        guard let id, !id.isEmpty else {
+            store.notice = "This song has no linked artist on your server."
+            close()
+            return
+        }
+        let artist = store.artists.first { $0.id == id } ?? Artist(id: id, name: song.artistName)
+        store.playerDestination = .artist(artist)
+        close()
     }
 }
 

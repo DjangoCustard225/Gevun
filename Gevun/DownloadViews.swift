@@ -110,7 +110,7 @@ struct SongDownloadActions: View {
         if let instance = store.api?.instance {
             let key = DownloadKey(namespace: DownloadKey.namespace(for: instance), songID: song.id)
             let job = store.downloads.library.jobs.first(where: { $0.key == key })
-            Button("Download…", systemImage: "arrow.down.circle") {
+            Button("Download", systemImage: "arrow.down.circle") {
                 store.downloadSelection = DownloadSelection(songs: [song], album: nil, instance: instance)
             }.disabled(job != nil)
             if let job {

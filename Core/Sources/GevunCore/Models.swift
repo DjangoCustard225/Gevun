@@ -94,6 +94,18 @@ public struct Song: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+extension Album {
+    public init?(song: Song) {
+        guard let id = song.albumId, !id.isEmpty else { return nil }
+        self.init(
+            id: id, name: song.album ?? "Unknown album", artist: song.artistName,
+            displayArtist: song.displayAlbumArtist, artists: song.albumArtists,
+            artistId: song.albumArtists?.compactMap(\.id).first
+                ?? (song.artist == song.artistName ? song.artistId : nil),
+            coverArt: song.coverArt, songCount: nil, duration: nil, year: nil, genre: nil, starred: nil, song: nil)
+    }
+}
+
 public struct ArtistCredit: Codable, Hashable, Sendable {
     public let id: String?
     public let name: String
