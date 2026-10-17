@@ -1,6 +1,12 @@
 import SwiftUI
 import GevunCore
 
+enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
+    case albums, artists, songs
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+}
+
 struct LibraryView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
@@ -121,35 +127,7 @@ struct LibraryView: View {
                         .id("\(store.sessionID):\(store.songs.count)")
                 }
             }
-        case .playlists:
-            if store.playlists.isEmpty {
-                empty(
-                    "Make a mix", symbol: "music.note.list",
-                    message: "Create playlists in Navidrome and they'll be waiting here.")
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(store.playlists) { playlist in
-                        VStack(spacing: 0) {
-                            NavigationLink {
-                                PlaylistDetailView(playlist: playlist)
-                            } label: {
-                                HStack(spacing: 10) {
-                                    ArtworkView(id: playlist.coverArt, size: 192).frame(width: 64, height: 64)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(playlist.name).font(.headline).foregroundStyle(.white)
-                                        Text(
-                                            "\(playlist.songCount ?? 0) tracks · \(TimeLabel.duration(playlist.duration ?? 0))"
-                                        )
-                                        .font(.caption).foregroundStyle(theme.secondary)
-                                    }.frame(maxWidth: .infinity, alignment: .leading)
-                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(theme.secondary)
-                                }.padding(.vertical, 4).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                            Divider().overlay(theme.border).padding(.leading, 74)
-                        }
-                    }
-                }
-            }
+
         }
     }
 

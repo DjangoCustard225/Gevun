@@ -1,10 +1,7 @@
-import AVFoundation
-import AudioToolbox
 import Foundation
 import GevunCore
 import Network
 import Observation
-import UIKit
 
 @MainActor
 @Observable
@@ -204,7 +201,7 @@ final class DownloadStore {
         for id in library.jobs.filter({ $0.state == .waiting }).map(\.id) { restart(id) }
     }
 
-    fileprivate func networkInterrupted(_ id: UUID) {
+    func networkInterrupted(_ id: UUID) {
         active[id] = nil
         guard let index = library.jobs.firstIndex(where: { $0.id == id }) else { return }
         library.jobs[index].state = .waiting
@@ -285,7 +282,7 @@ final class DownloadStore {
         }
     }
 
-    fileprivate func received(_ id: UUID, file: URL) {
+    func received(_ id: UUID, file: URL) {
         active[id] = nil
         guard library.jobs.contains(where: { $0.id == id }), !reconciling else {
             if !library.jobs.contains(where: { $0.id == id }) { try? FileManager.default.removeItem(at: file) }
@@ -329,7 +326,7 @@ final class DownloadStore {
         }
     }
 
-    fileprivate func fail(_ id: UUID, message: String) {
+    func fail(_ id: UUID, message: String) {
         active[id] = nil
         guard let index = library.jobs.firstIndex(where: { $0.id == id }) else { return }
         library.jobs[index].state = .failed
@@ -340,7 +337,7 @@ final class DownloadStore {
         pump()
     }
 
-    fileprivate func updateProgress(_ id: UUID, written: Int64, expected: Int64) {
+    func updateProgress(_ id: UUID, written: Int64, expected: Int64) {
         guard active[id] != nil, expected > 0 else { return }
         let value = min(1, max(0, Double(written) / Double(expected)))
         // Avoid invalidating song rows on every network packet.
@@ -381,7 +378,7 @@ final class DownloadStore {
         }
     }
 
-    fileprivate func finishedBackgroundEvents() {
+    func finishedBackgroundEvents() {
         backgroundEventsFinished = true
         finishBackgroundEventsIfReady()
     }
@@ -500,141 +497,5 @@ final class DownloadStore {
                 try? FileManager.default.removeItem(at: file)
             }
         }
-    }
-}
-
-private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    weak var owner: DownloadStore?
-    let root: URL
-    init(root: URL) { self.root = root }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
-        do {
-            let handle = try FileHandle(forReadingFrom: location)
-            defer { try? handle.close() }
-            let prefix = try handle.read(upToCount: 4096) ?? Data()
-            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
-            if let error = DownloadLibrary.responseError(status: status, prefix: prefix) {
-                throw DownloadFailure(error)
-            }
-            let staged = root.appendingPathComponent("\(id.uuidString).staged.part")
-            try FileManager.default.moveItem(at: location, to: staged)
-            try FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: staged.path)
-            Task { @MainActor [weak self] in self?.owner?.received(id, file: staged) }
-        } catch {
-            let message = friendlyDownloadError(error)
-            Task { @MainActor [weak self] in self?.owner?.fail(id, message: message) }
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error, let id = task.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
-        if let network = error as? URLError, [.notConnectedToInternet, .networkConnectionLost].contains(network.code) {
-            Task { @MainActor [weak self] in self?.owner?.networkInterrupted(id) }
-            return
-        }
-        let message = friendlyDownloadError(error)
-        Task { @MainActor [weak self] in self?.owner?.fail(id, message: message) }
-    }
-
-    func urlSession(
-        _ session: URLSession, downloadTask: URLSessionDownloadTask,
-        didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
-    ) {
-        guard let id = downloadTask.taskDescription.flatMap(UUID.init(uuidString:)) else { return }
-        Task { @MainActor [weak self] in
-            self?.owner?.updateProgress(id, written: totalBytesWritten, expected: totalBytesExpectedToWrite)
-        }
-    }
-
-    func urlSession(
-        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        guard let original = task.originalRequest?.url, let target = request.url,
-            SameOriginRedirects.sameOrigin(original, target)
-        else { completionHandler(nil); return }
-        completionHandler(request)
-    }
-
-    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        Task { @MainActor [weak self] in self?.owner?.finishedBackgroundEvents() }
-    }
-}
-
-private struct DownloadFailure: LocalizedError {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
-}
-
-private func friendlyDownloadError(_ error: Error) -> String {
-    let ns = error as NSError
-    if ns.domain == NSCocoaErrorDomain && ns.code == NSFileWriteOutOfSpaceError
-        || (error as? URLError)?.code == .cannotWriteToFile
-    {
-        return "There isn't enough free storage. Free some space and retry."
-    }
-    // Avoid exposing authenticated URLs contained in URLSession's diagnostic descriptions.
-    if error is URLError { return "The download was interrupted. Check your connection and retry." }
-    return error.localizedDescription
-}
-
-private enum DownloadValidation {
-    struct Result { let file: URL; let extensionName: String; let bytes: Int64 }
-
-    static func check(_ file: URL, job: DownloadJob) async throws -> Result {
-        try Task.checkCancellation()
-        let handle = try FileHandle(forReadingFrom: file)
-        let prefix = try handle.read(upToCount: 4096) ?? Data()
-        try handle.close()
-        if let error = DownloadLibrary.responseError(status: 200, prefix: prefix) { throw DownloadFailure(error) }
-        let isMP4 = prefix.count >= 8 && String(decoding: prefix[4..<8], as: UTF8.self) == "ftyp"
-        let suffix = job.song.suffix?.lowercased() ?? "audio"
-        let safeSuffix =
-            !suffix.isEmpty && suffix.count < 9 && suffix.allSatisfy { $0.isASCII && $0.isLetter || $0.isNumber }
-            ? suffix : "audio"
-        let ext =
-            job.quality.format == .original
-            ? safeSuffix : isMP4 && job.quality.format == .aac ? "m4a" : job.quality.format.rawValue
-        let typed = file.deletingLastPathComponent().appendingPathComponent("\(job.id.uuidString).staged.\(ext)")
-        if file != typed { try FileManager.default.moveItem(at: file, to: typed) }
-        let asset = AVURLAsset(url: typed, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
-        guard try await asset.load(.isPlayable) else {
-            throw DownloadFailure("This file can't play through the native player. Try downloading as MP3 or AAC.")
-        }
-        let duration = try await asset.load(.duration).seconds
-        guard duration.isFinite, duration > 0 else {
-            throw DownloadFailure("The downloaded audio has no readable duration. Try another format.")
-        }
-        if let expected = job.song.duration, expected > 0, duration + max(3, Double(expected) * 0.02) < Double(expected)
-        {
-            throw DownloadFailure("The downloaded file appears incomplete. Retry the download.")
-        }
-        let tracks = try await asset.loadTracks(withMediaType: .audio)
-        guard let track = tracks.first else { throw DownloadFailure("The downloaded file has no audio track.") }
-        let formats = try await track.load(.formatDescriptions)
-        let codecs = formats.map { CMFormatDescriptionGetMediaSubType($0) }
-        let expected: AudioFormatID?
-        switch job.quality.format {
-        case .original: expected = nil
-        case .opus: expected = kAudioFormatOpus
-        case .mp3: expected = kAudioFormatMPEGLayer3
-        case .aac: expected = kAudioFormatMPEG4AAC
-        }
-        if let expected, !codecs.contains(expected) {
-            throw DownloadFailure(
-                "The server returned a different format. Check that its \(job.quality.format.title) transcoder is available."
-            )
-        }
-        let bytes = try typed.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard bytes > 0 else { throw DownloadFailure("The server returned an empty file.") }
-        if job.quality.format == .original, let expected = job.song.size, expected > 0, Int64(bytes) != expected {
-            throw DownloadFailure("The downloaded file size doesn't match the original. Retry the download.")
-        }
-        try Task.checkCancellation()
-        return Result(file: typed, extensionName: ext, bytes: Int64(bytes))
     }
 }

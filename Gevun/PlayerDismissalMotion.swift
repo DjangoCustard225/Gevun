@@ -18,6 +18,7 @@ final class PlayerDismissalMotion: ObservableObject {
 
     var progress: CGFloat { min(1, offset / CGFloat(physics.height * 0.4)) }
     var cornerRadius: CGFloat { 28 * offset / (offset + 60) }
+    var isDismissing: Bool { phase == .dismissing }
 
     func resize(height: CGFloat) {
         guard abs(Double(height) - physics.height) > 1 else { return }

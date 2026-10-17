@@ -1,5 +1,4 @@
 import SwiftUI
-import GevunCore
 
 @main
 struct GevunApp: App {
@@ -27,8 +26,6 @@ struct RootView: View {
     @State private var selection = AppTab.albums
     @State private var searchQuery = ""
     @State private var searchPresented = false
-    @State private var albumPath = NavigationPath()
-    @State private var artistPath = NavigationPath()
 
     var body: some View {
         @Bindable var store = store
@@ -55,12 +52,7 @@ struct RootView: View {
             .tint(appearance.theme.accent)
             .onChange(of: store.sessionID) { _, _ in
                 store.downloadSelection = nil
-                store.playerDestination = nil
-                albumPath = NavigationPath(); artistPath = NavigationPath()
                 searchPresented = false; searchQuery = ""; selection = .albums
-            }
-            .onChange(of: interface.expanded) { _, expanded in
-                if !expanded { openPlayerDestination() }
             }
             .task(id: "\(interface.expanded):\(store.sessionID):\(interface.current?.coverArt ?? "")") {
                 guard !interface.expanded else { return }
@@ -77,16 +69,10 @@ struct RootView: View {
             } else {
                 TabView(selection: $selection) {
                     Tab("Albums", systemImage: "square.stack", value: .albums) {
-                        NavigationStack(path: $albumPath) {
-                            LibraryView(category: .albums)
-                                .navigationDestination(for: Album.self) { AlbumDetailView(album: $0) }
-                        }.id(store.sessionID)
+                        NavigationStack { LibraryView(category: .albums) }.id(store.sessionID)
                     }
                     Tab("Artists", systemImage: "person.2", value: .artists) {
-                        NavigationStack(path: $artistPath) {
-                            LibraryView(category: .artists)
-                                .navigationDestination(for: Artist.self) { ArtistDetailView(artist: $0) }
-                        }.id(store.sessionID)
+                        NavigationStack { LibraryView(category: .artists) }.id(store.sessionID)
                     }
                     Tab("Songs", systemImage: "music.note", value: .songs) {
                         NavigationStack { LibraryView(category: .songs) }.id(store.sessionID)
@@ -111,20 +97,6 @@ struct RootView: View {
                     MiniPlayer()
                 }
             }
-        }
-    }
-
-    private func openPlayerDestination() {
-        guard let destination = store.playerDestination else { return }
-        store.playerDestination = nil
-        searchPresented = false
-        switch destination {
-        case .album(let album):
-            albumPath = NavigationPath([album])
-            selection = .albums
-        case .artist(let artist):
-            artistPath = NavigationPath([artist])
-            selection = .artists
         }
     }
 }

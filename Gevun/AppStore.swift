@@ -2,11 +2,6 @@ import SwiftUI
 import Observation
 import GevunCore
 
-enum PlayerDestination {
-    case album(Album)
-    case artist(Artist)
-}
-
 @MainActor
 @Observable
 final class AppStore {
@@ -18,7 +13,6 @@ final class AppStore {
     private(set) var albums: [Album] = []
     private(set) var artists: [Artist] = []
     private(set) var songs: [Song] = []
-    private(set) var playlists: [Playlist] = []
     private(set) var libraryLoading: Set<LibraryCategory> = []
     private(set) var libraryErrors: [LibraryCategory: String] = [:]
     private(set) var libraryLoaded: Set<LibraryCategory> = []
@@ -29,7 +23,6 @@ final class AppStore {
     var showConnection = false
     var serverVersion = ""
     var downloadSelection: DownloadSelection?
-    var playerDestination: PlayerDestination?
     let player: PlayerStore
     let artwork: ArtworkCache
     let downloads: DownloadStore
@@ -115,7 +108,6 @@ final class AppStore {
         albums = []
         artists = []
         songs = []
-        playlists = []
         libraryErrors = [:]
         libraryLoading = []
         libraryLoaded = []
@@ -173,10 +165,7 @@ final class AppStore {
                 songs = more ? songs + additions : additions
                 songOffset = offset + page.count
                 moreSongs = page.count == 100 && (!more || !additions.isEmpty)
-            case .playlists:
-                let values = try await api.playlists()
-                guard libraryRevisions[category] == revision, self.api === api, !Task.isCancelled else { return }
-                playlists = values
+
             }
             libraryLoaded.insert(category)
         } catch {
@@ -222,26 +211,4 @@ final class AppStore {
             downloadSelection = DownloadSelection(songs: detail.songs, album: detail, instance: api.instance)
         } catch { if self.api === api { notice = friendlyError(error) } }
     }
-}
-
-enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
-    case albums, artists, songs, playlists
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
-}
-
-func friendlyError(_ error: Error) -> String {
-    if let error = error as? URLError {
-        switch error.code {
-        case .notConnectedToInternet, .networkConnectionLost:
-            return "You're offline. Connect to your network and try again."
-        case .timedOut: return "The server took too long to respond. Try again."
-        case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
-            return "Couldn't reach your server. Check its address, network, and VPN."
-        case .serverCertificateUntrusted, .serverCertificateHasBadDate, .secureConnectionFailed:
-            return "The server's secure connection could not be verified. Check its HTTPS certificate."
-        default: return "The connection failed. Check your server and try again."
-        }
-    }
-    return error.localizedDescription
 }

@@ -46,7 +46,7 @@ final class PlayerStore: ObservableObject {
     private var timeControlObservation: NSKeyValueObservation?
     private var itemStatusObservation: NSKeyValueObservation?
     private var notifications: [NSObjectProtocol] = []
-    private var remoteTargets: [(MPRemoteCommand, Any)] = []
+    private var remoteCommands: RemotePlaybackCommands?
     private var artworkTask: Task<Void, Never>?
     private var assetTimingTask: Task<Void, Never>?
     private let artwork: ArtworkCache
@@ -67,7 +67,7 @@ final class PlayerStore: ObservableObject {
         self.downloads = downloads
         configurePlayerObservation()
         configureAudioObservation()
-        configureRemote()
+        remoteCommands = RemotePlaybackCommands(player: self)
     }
 
     private func configurePlayerObservation() {
@@ -477,33 +477,9 @@ final class PlayerStore: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
-    private func configureRemote() {
-        let center = MPRemoteCommandCenter.shared()
-        bind(center.playCommand) { $0.resume() }
-        bind(center.pauseCommand) { $0.pause() }
-        bind(center.togglePlayPauseCommand) { $0.toggle() }
-        bind(center.nextTrackCommand) { $0.next() }
-        bind(center.previousTrackCommand) { $0.previous() }
-        let target = center.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            let position = event.positionTime
-            Task { @MainActor in self?.seek(position) }
-            return .success
-        }
-        remoteTargets.append((center.changePlaybackPositionCommand, target))
-    }
-
-    private func bind(_ command: MPRemoteCommand, action: @escaping (PlayerStore) -> Void) {
-        let target = command.addTarget { [weak self] _ in
-            Task { @MainActor in if let self { action(self) } }
-            return .success
-        }
-        remoteTargets.append((command, target))
-    }
     deinit {
         if let periodic { player.removeTimeObserver(periodic) }
         notifications.forEach { NotificationCenter.default.removeObserver($0) }
-        remoteTargets.forEach { $0.0.removeTarget($0.1) }
         artworkTask?.cancel()
         assetTimingTask?.cancel()
     }
