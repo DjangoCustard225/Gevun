@@ -58,6 +58,7 @@ final class PlayerStore: ObservableObject {
     private var scrobbled = false
     private var resumeAfterInterruption = false
     private var wantsPlayback = false
+    private var resumePosition: Double?
     private var atEnd = false
     private var endDuringSeek = false
     var current: Song? { queue.current }
@@ -209,7 +210,7 @@ final class PlayerStore: ObservableObject {
             resumeAfterInterruption = false
             if atEnd { seek(0) }
             wantsPlayback = true
-            player.play()
+            if resumePosition == nil { player.play() }
             updateNowPlaying()
         } catch { fail("Audio playback could not start. Try again.") }
     }
@@ -274,6 +275,7 @@ final class PlayerStore: ObservableObject {
 
     func stop() {
         playbackID = UUID()
+        resumePosition = nil
         timeline.reset(duration: 0)
         wantsPlayback = false
         resumeAfterInterruption = false
@@ -312,10 +314,17 @@ final class PlayerStore: ObservableObject {
         try session.setActive(true)
     }
 
-    private func loadCurrent() {
+    func restore(_ saved: SavedPlayQueue) {
+        guard !saved.songs.isEmpty else { return }
+        queue.replace(saved.songs, startingAt: saved.index)
+        loadCurrent(startAt: saved.seconds)
+    }
+
+    private func loadCurrent(startAt: Double = 0) {
         guard let song = current, let api else { return }
         let playbackID = UUID()
         self.playbackID = playbackID
+        resumePosition = startAt > 0 ? startAt : nil
         timeline.reset(duration: Double(song.duration ?? 0))
         publishTimeline()
         error = nil
@@ -346,6 +355,11 @@ final class PlayerStore: ObservableObject {
                 Task { @MainActor in
                     guard let self, self.playbackID == playbackID, self.player.currentItem === item else { return }
                     self.refreshTiming(for: item)
+                    if item.status == .readyToPlay, let position = self.resumePosition {
+                        self.resumePosition = nil
+                        self.seek(position)
+                        if self.wantsPlayback { self.player.play() }
+                    }
                     if item.status == .failed {
                         self.fail(
                             "This file couldn't be played. Check the connection or download it again in a supported format."
@@ -355,7 +369,7 @@ final class PlayerStore: ObservableObject {
             }
             player.replaceCurrentItem(with: item)
             wantsPlayback = true
-            player.play()
+            if resumePosition == nil { player.play() }
             updateNowPlaying()
             loadPreciseTiming(asset: asset, item: item, playbackID: playbackID)
             if let id = song.coverArt {

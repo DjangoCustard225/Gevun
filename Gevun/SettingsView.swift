@@ -65,6 +65,7 @@ struct SettingsView: View {
                 } label: {
                     Label("Downloads", systemImage: "arrow.down.circle")
                 }
+                NavigationLink("Listening queue") { QueueSyncView() }
                 NavigationLink("About Gevun") { AboutGevunView() }
             }.listRowBackground(theme.surface)
         }

@@ -4,102 +4,129 @@ import GevunCore
 struct DownloadsSettingsView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
+    @State private var sort = DownloadSort.title
     @State private var removingAll = false
-    private var namespace: String { store.api.map { DownloadKey.namespace(for: $0.instance) } ?? "" }
-    private var jobs: [DownloadJob] { store.downloads.library.jobs.filter { $0.key.namespace == namespace } }
-    private var copies: [OfflineSong] { store.downloads.copies(namespace: namespace) }
+    private var namespace: String { store.downloadNamespace ?? "" }
 
     var body: some View {
         @Bindable var downloads = store.downloads
+        let copies = downloads.library.copies.filter { $0.key.namespace == namespace }
+        let jobs = downloads.library.jobs.filter { $0.key.namespace == namespace }
+        let sorted = copies.sorted(by: sort.precedes)
+
         List {
-            Section {
-                Toggle("Wi-Fi only", isOn: $downloads.wifiOnly)
-                    .tint(theme.switchTint)
-                LabeledContent(
-                    "Storage used",
-                    value: ByteCountFormatter.string(
-                        fromByteCount: copies.reduce(0) { $0 + $1.bytes }, countStyle: .file))
-            } footer: {
-                Text("Downloads belong to this server. Music stays saved until you remove it.")
-            }
             if let error = downloads.storageError {
                 Section {
-                    Text(error).foregroundStyle(.red)
+                    Label(error, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.red)
                     Button("Try storage again", systemImage: "arrow.clockwise") { downloads.retryStorage() }
                 }
+                .listRowBackground(Color.clear)
             }
             if !jobs.isEmpty {
-                Section("Downloads") {
+                Section("Transfers") {
                     ForEach(jobs) { job in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(job.song.title).font(.subheadline.weight(.medium))
-                                    Text(job.quality.title).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if job.state == .failed || job.state == .waiting {
-                                    Button {
-                                        downloads.retry(job.id)
-                                    } label: {
-                                        Image(systemName: "arrow.clockwise")
-                                    }
-                                    .accessibilityLabel("Retry \(job.song.title)")
-                                }
-                                Button {
-                                    downloads.cancel(job.id)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                }
-                                .accessibilityLabel("Cancel \(job.song.title)")
-                            }.buttonStyle(.borderless)
-                            if job.state == .transferring {
-                                if let value = downloads.progress[job.id] {
-                                    ProgressView(value: value)
-                                } else {
-                                    ProgressView()
-                                }
-                            }
-                            Text(
-                                job.error
-                                    ?? (job.state == .validating
-                                        ? "Checking audio…"
-                                        : downloads.waitingMessage
-                                            ?? (job.state == .queued
-                                                ? "Queued"
-                                                : job.state == .waiting ? "Waiting to retry" : "Downloading…"))
-                            )
-                            .font(.caption).foregroundStyle(job.state == .failed ? .red : .secondary)
-                        }.padding(.vertical, 4)
+                        DownloadProgressRow(job: job)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 12))
+                            .listRowSeparatorTint(theme.border)
+                    }
+                }
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                if copies.isEmpty {
+                    ContentUnavailableView(
+                        jobs.isEmpty ? "No downloaded music" : "Your music is on its way",
+                        systemImage: "arrow.down.circle",
+                        description: Text(
+                            jobs.isEmpty
+                                ? "Download songs or albums from their menus to listen offline."
+                                : "Completed downloads will appear here.")
+                    )
+                    .listRowSeparator(.hidden)
+                } else {
+                    ForEach(sorted) { copy in
+                        DownloadedSongRow(copy: copy) {
+                            guard let index = sorted.firstIndex(where: { $0.key == copy.key }) else { return }
+                            store.player.play(sorted.map(\.song), at: index)
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 12))
+                        .listRowSeparatorTint(theme.border)
                     }
                 }
             }
-            Section("Saved music") {
-                if copies.isEmpty { Text("No downloaded songs yet").foregroundStyle(.secondary) }
-                ForEach(copies) { copy in
-                    HStack(spacing: 10) {
-                        ArtworkView(id: copy.song.coverArt, size: 192).frame(width: 48, height: 48)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(copy.song.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                            Text(
-                                copy.quality.title + " · "
-                                    + ByteCountFormatter.string(fromByteCount: copy.bytes, countStyle: .file)
-                            )
-                            .font(.caption).foregroundStyle(.secondary)
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+        .listSectionSpacing(.compact)
+        .navigationTitle("Downloads").navigationBarTitleDisplayMode(.inline)
+        .pageBackground()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if !sorted.isEmpty {
+                        Section {
+                            Button("Play all", systemImage: "play.fill") {
+                                store.player.play(sorted.map(\.song))
+                            }
                         }
                     }
-                    .swipeActions { Button("Remove", role: .destructive) { downloads.remove(copy.key) } }
+                    if !copies.isEmpty {
+                        Picker("Sort by", selection: $sort) {
+                            ForEach(DownloadSort.allCases) { order in Text(order.rawValue).tag(order) }
+                        }
+                        Section { DownloadExportLink(copies: copies, title: "Export all downloads") }
+                    }
+                    Section {
+                        Toggle("Wi-Fi only", isOn: $downloads.wifiOnly).tint(theme.switchTint)
+                    }
+                    if !copies.isEmpty || !jobs.isEmpty {
+                        Section {
+                            Button("Remove all downloads", systemImage: "trash", role: .destructive) {
+                                removingAll = true
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
                 }
-            }
-            if !copies.isEmpty || !jobs.isEmpty {
-                Section { Button("Remove all downloads", role: .destructive) { removingAll = true } }
+                .accessibilityLabel("Sort and manage downloads")
             }
         }
-        .listSectionSpacing(.compact).navigationTitle("Downloads").pageBackground()
         .confirmationDialog(
             "Remove all downloads for this server?", isPresented: $removingAll, titleVisibility: .visible
         ) {
             Button("Remove downloads", role: .destructive) { downloads.removeNamespace(namespace) }
         }
+        .onChange(of: store.sessionID) { _, _ in
+            removingAll = false
+        }
+        .listeningLinkPresentation()
+    }
+}
+
+private enum DownloadSort: String, CaseIterable, Identifiable {
+    case title = "Title"
+    case artist = "Artist"
+    case album = "Album"
+    case recent = "Recently downloaded"
+    case size = "File size"
+    var id: Self { self }
+
+    func precedes(_ lhs: OfflineSong, _ rhs: OfflineSong) -> Bool {
+        let comparison: ComparisonResult
+        switch self {
+        case .title: comparison = lhs.song.title.localizedStandardCompare(rhs.song.title)
+        case .artist: comparison = lhs.song.artistName.localizedStandardCompare(rhs.song.artistName)
+        case .album: comparison = (lhs.song.album ?? "").localizedStandardCompare(rhs.song.album ?? "")
+        case .recent:
+            if lhs.savedAt != rhs.savedAt { return lhs.savedAt > rhs.savedAt }
+            comparison = .orderedSame
+        case .size:
+            if lhs.bytes != rhs.bytes { return lhs.bytes > rhs.bytes }
+            comparison = .orderedSame
+        }
+        if comparison != .orderedSame { return comparison == .orderedAscending }
+        let title = lhs.song.title.localizedStandardCompare(rhs.song.title)
+        return title == .orderedSame ? lhs.key.songID < rhs.key.songID : title == .orderedAscending
     }
 }

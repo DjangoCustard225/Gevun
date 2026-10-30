@@ -85,6 +85,27 @@ public struct DownloadJob: Codable, Identifiable, Sendable {
     }
 }
 
+/// A snapshot of one download selection, scoped to its server and requested quality.
+public struct DownloadBatchStatus: Sendable {
+    public let jobs: [DownloadJob]
+    public let savedCount: Int
+    public let totalCount: Int
+    public var isComplete: Bool { totalCount > 0 && savedCount == totalCount }
+
+    public init(library: DownloadLibrary, songs: [Song], namespace: String, quality: DownloadQuality) {
+        let selectedIDs = Set(songs.map(\.id))
+        totalCount = selectedIDs.count
+        jobs = library.jobs.filter {
+            $0.key.namespace == namespace && selectedIDs.contains($0.key.songID)
+        }
+        let savedIDs = Set(
+            library.copies.filter {
+                $0.key.namespace == namespace && $0.quality == quality && selectedIDs.contains($0.key.songID)
+            }.map { $0.key.songID })
+        savedCount = savedIDs.count
+    }
+}
+
 public struct OfflineAlbum: Codable, Sendable {
     public let namespace: String
     public let album: Album

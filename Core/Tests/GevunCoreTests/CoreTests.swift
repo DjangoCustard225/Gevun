@@ -174,13 +174,10 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(noCredit.songs.first?.artistName, "Guest")
     }
 
-    func testSearchAndPlaylistRetainAlbumArtistCredits() throws {
+    func testSearchRetainsAlbumArtistCredits() throws {
         let entries = #"[{"id":"s1","title":"Track","artist":"Guest","displayAlbumArtist":"Album Band"}]"#
         let search = try JSONDecoder().decode(SearchResults.self, from: Data("{\"song\":\(entries)}".utf8))
-        let playlist = try JSONDecoder().decode(
-            Playlist.self, from: Data("{\"id\":\"p1\",\"name\":\"Playlist\",\"entry\":\(entries)}".utf8))
         XCTAssertEqual(search.songs.first?.artistName, "Album Band")
-        XCTAssertEqual(playlist.songs.first?.artistName, "Album Band")
     }
 
     func testStreamAlwaysRequestsTheOriginalFile() throws {
@@ -406,6 +403,40 @@ final class CoreTests: XCTestCase {
 
     private func makeInstance(_ address: String = "https://example.com") throws -> Instance {
         try Instance(name: "Home", address: address, username: "user", password: "sesame")
+    }
+
+    func testSavedQueueUsesSongIDsAndMilliseconds() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","playQueue":{"current":"2","position":12345,"entry":[{"id":"1","title":"One"},{"id":"2","title":"Two"}]}}}"#
+        let response = try await api.savedQueue()
+        let saved = try XCTUnwrap(response)
+        XCTAssertEqual(saved.index, 1)
+        XCTAssertEqual(saved.seconds, 12.345)
+        try await api.saveQueue(songs: saved.songs, index: saved.index, position: saved.seconds)
+        let query = mutationParameters()
+        XCTAssertEqual(query.first { $0.name == "current" }?.value, "2")
+        XCTAssertEqual(query.first { $0.name == "position" }?.value, "12345")
+    }
+
+    func testListeningLinkAndPermissionFailure() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","shares":{"share":[{"url":"https://music.example/share/example"}]}}}"#
+        let link = try await api.share(["album"])
+        XCTAssertEqual(link.absoluteString, "https://music.example/share/example")
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"failed","error":{"code":50}}}"#
+        do { _ = try await api.share(["album"]); XCTFail("Expected disabled sharing") } catch {
+            XCTAssertEqual(error as? GevunError, .forbidden)
+        }
+    }
+
+    private func mutationParameters() -> [URLQueryItem] {
+        let request = FixtureProtocol.lastRequest!
+        XCTAssertEqual(request.httpMethod, "POST")
+        var form = URLComponents()
+        form.percentEncodedQuery = String(data: request.httpBody ?? Data(), encoding: .utf8)
+        return form.queryItems ?? []
     }
 
     private func fixtureAPI() throws -> NavidromeAPI {

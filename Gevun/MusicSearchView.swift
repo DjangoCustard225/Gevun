@@ -65,6 +65,7 @@ struct MusicSearchView: View {
                 await search(more: false)
             } catch { /* Superseded keystrokes are intentionally cancelled. */  }
         }
+        .listeningLinkPresentation()
     }
 
     private var visibleResultsEmpty: Bool {

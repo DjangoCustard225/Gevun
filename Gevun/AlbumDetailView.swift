@@ -60,10 +60,8 @@ struct AlbumDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                ShareLink(item: "\(displayedAlbum.name) — \(displayedAlbum.artistName)") {
-                    Image(systemName: "square.and.arrow.up").foregroundStyle(.white)
-                }.accessibilityLabel("Share album")
                 Menu {
+                    ServerShareButton(ids: [album.id])
                     Button("Download", systemImage: "arrow.down.circle") {
                         if let instance = store.api?.instance {
                             store.downloadSelection = DownloadSelection(
@@ -93,6 +91,7 @@ struct AlbumDetailView: View {
                 songs = store.downloads.savedSongs(albumID: album.id, namespace: namespace)
             }
         }
+        .listeningLinkPresentation()
     }
 
     private var albumHeading: some View {

@@ -54,6 +54,7 @@ struct ArtistDetailView: View {
                 .presentationDragIndicator(.visible)
         }
         .task(id: "\(store.sessionID):\(artist.id)") { await load() }
+        .listeningLinkPresentation()
     }
 
     private var about: some View {

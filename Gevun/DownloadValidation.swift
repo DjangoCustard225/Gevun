@@ -27,13 +27,13 @@ enum DownloadValidation {
     static func check(_ file: URL, job: DownloadJob) async throws -> Result {
         try Task.checkCancellation()
         let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
         let prefix = try handle.read(upToCount: 4096) ?? Data()
-        try handle.close()
         if let error = DownloadLibrary.responseError(status: 200, prefix: prefix) { throw DownloadFailure(error) }
         let isMP4 = prefix.count >= 8 && String(decoding: prefix[4..<8], as: UTF8.self) == "ftyp"
         let suffix = job.song.suffix?.lowercased() ?? "audio"
         let safeSuffix =
-            !suffix.isEmpty && suffix.count < 9 && suffix.allSatisfy { $0.isASCII && $0.isLetter || $0.isNumber }
+            !suffix.isEmpty && suffix.count < 9 && suffix.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
             ? suffix : "audio"
         let ext =
             job.quality.format == .original

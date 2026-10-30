@@ -63,9 +63,18 @@ public final class NavidromeAPI: @unchecked Sendable {
 
     private func request(
         _ endpoint: String, _ parameters: [URLQueryItem] = [],
-        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
+        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy, post: Bool = false
     ) async throws -> Response {
-        var request = URLRequest(url: try url(endpoint, parameters: parameters), cachePolicy: cachePolicy)
+        var request = URLRequest(
+            url: try url(endpoint, parameters: post ? [] : parameters),
+            cachePolicy: post ? .reloadIgnoringLocalCacheData : cachePolicy)
+        if post {
+            request.httpMethod = "POST"
+            var form = URLComponents()
+            form.queryItems = parameters
+            request.httpBody = form.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B").data(using: .utf8)
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Task.checkCancellation()
@@ -128,16 +137,26 @@ public final class NavidromeAPI: @unchecked Sendable {
         return info
     }
 
-    public func playlists() async throws -> [Playlist] {
-        guard let playlists = try await request("getPlaylists").playlists else { throw GevunError.invalidResponse }
-        return playlists.playlist ?? []
+    public func savedQueue() async throws -> SavedPlayQueue? {
+        try await request("getPlayQueue").playQueue
     }
 
-    public func playlist(_ id: String) async throws -> Playlist {
-        guard let playlist = try await request("getPlaylist", [item("id", id)]).playlist else {
-            throw GevunError.invalidResponse
-        }
-        return playlist
+    public func saveQueue(songs: [Song], index: Int, position: Double) async throws {
+        guard songs.indices.contains(index), position.isFinite else { return }
+        _ = try await request(
+            "savePlayQueue",
+            songs.map { item("id", $0.id) } + [
+                item("current", songs[index].id), item("position", Int64(max(0, position) * 1000)),
+                item("changedBy", "Gevun"),
+            ], post: true)
+    }
+
+    public func share(_ ids: [String]) async throws -> URL {
+        let response = try await request("createShare", ids.map { item("id", $0) }, post: true)
+        guard let value = response.shares?.share?.first?.url, let url = URL(string: value),
+            ["https", "http"].contains(url.scheme?.lowercased() ?? "")
+        else { throw GevunError.invalidResponse }
+        return url
     }
 
     public func search(_ query: String, albumOffset: Int = 0, artistOffset: Int = 0, songOffset: Int = 0) async throws
@@ -242,20 +261,22 @@ private struct Response: Decodable {
     let artists: ArtistList?
     let artist: Artist?
     let artistInfo2: ArtistInfo?
-    let playlists: Playlists?
-    let playlist: Playlist?
     let lyricsList: LyricsList?
     let lyrics: LegacyLyrics?
     let searchResult3: SearchResults?
+    let playQueue: SavedPlayQueue?
+    let shares: Shares?
 }
 private struct APIError: Decodable { let code: Int }
 private struct AlbumList: Decodable { let album: [Album]? }
 private struct ArtistList: Decodable { let index: [ArtistIndex]? }
 private struct ArtistIndex: Decodable { let artist: [Artist]? }
-private struct Playlists: Decodable { let playlist: [Playlist]? }
 private struct LyricsList: Decodable { let structuredLyrics: [StructuredLyrics]? }
 private struct LegacyLyrics: Decodable {
     let artist: String?
     let title: String?
     let value: String?
 }
+
+private struct Shares: Decodable { let share: [ServerShare]? }
+private struct ServerShare: Decodable { let url: String }

@@ -75,6 +75,7 @@ struct LibraryView: View {
         ) {
             if !downloadedOnly { await store.ensureLibrary(category) }
         }
+        .listeningLinkPresentation()
     }
 
     @ViewBuilder private var content: some View {
@@ -109,7 +110,17 @@ struct LibraryView: View {
                 }
             }
         case .songs:
-            if songs.isEmpty && !downloadedOnly {
+            if downloadedOnly {
+                let copies = store.downloads.copies(namespace: namespace)
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(copies.enumerated()), id: \.element.key) { index, copy in
+                        VStack(spacing: 0) {
+                            DownloadedSongRow(copy: copy) { player.play(copies.map(\.song), at: index) }
+                            Divider().overlay(theme.border).padding(.leading, 68)
+                        }
+                    }
+                }
+            } else if songs.isEmpty {
                 empty(
                     "No songs yet", symbol: "music.note",
                     message: "Songs in your server's music library will appear here.")

@@ -7,6 +7,7 @@ struct SongDownloadActions: View {
     var body: some View {
         if let instance = store.api?.instance {
             let key = DownloadKey(namespace: DownloadKey.namespace(for: instance), songID: song.id)
+            ServerShareButton(ids: [song.id])
             let job = store.downloads.library.jobs.first(where: { $0.key == key })
             Button("Download", systemImage: "arrow.down.circle") {
                 store.downloadSelection = DownloadSelection(songs: [song], album: nil, instance: instance)
@@ -17,9 +18,21 @@ struct SongDownloadActions: View {
                 }
                 Button("Cancel download", systemImage: "xmark.circle") { store.downloads.cancel(job.id) }
             }
-            if store.downloads.savedKeys.contains(key) {
-                Button("Remove download", systemImage: "trash", role: .destructive) { store.downloads.remove(key) }
+            if let copy = store.downloads.library.copies.first(where: { $0.key == key }) {
+                SavedDownloadActions(copy: copy)
             }
+        }
+    }
+}
+
+struct SavedDownloadActions: View {
+    @Environment(AppStore.self) private var store
+    let copy: OfflineSong
+
+    var body: some View {
+        DownloadExportLink(copies: [copy])
+        Button("Remove download", systemImage: "trash", role: .destructive) {
+            store.downloads.remove(copy.key)
         }
     }
 }

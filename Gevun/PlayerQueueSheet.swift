@@ -15,6 +15,7 @@ struct PlayerQueueSheet: View {
                 .navigationTitle("Queue").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .listeningLinkPresentation()
         .downloadPresentation(fromPlayer: true)
     }
 }

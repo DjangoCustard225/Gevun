@@ -146,6 +146,7 @@ struct AlbumActions: View {
         Button("Play", systemImage: "play.fill") { play(shuffle: false) }
         Button("Shuffle", systemImage: "shuffle") { play(shuffle: true) }
         Button("Download", systemImage: "arrow.down.circle") { Task { await store.downloadAlbum(album) } }
+        ServerShareButton(ids: [album.id])
     }
 
     private func play(shuffle: Bool) {

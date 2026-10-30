@@ -142,6 +142,47 @@ final class DownloadTests: XCTestCase {
         XCTAssertTrue(library.downloadedAlbums(namespace: "another-server").isEmpty)
     }
 
+    func testBatchCompletionRequiresEveryUniqueSongAtTheRequestedQualityAndServer() throws {
+        let first = try song("first"), second = try song("second")
+        let quality = DownloadQuality(format: .aac)
+        var library = DownloadLibrary()
+        func status() -> DownloadBatchStatus {
+            DownloadBatchStatus(library: library, songs: [first, first, second], namespace: "a", quality: quality)
+        }
+        let wrongServer = try XCTUnwrap(library.enqueue(first, namespace: "b", quality: quality))
+        library.complete(wrongServer, filename: "b.m4a", bytes: 100)
+        let wrongQuality = try XCTUnwrap(library.enqueue(first, namespace: "a", quality: DownloadQuality()))
+        library.complete(wrongQuality, filename: "a.flac", bytes: 100)
+        XCTAssertEqual(status().totalCount, 2)
+        XCTAssertEqual(status().savedCount, 0)
+        XCTAssertFalse(status().isComplete)
+        for track in [first, second] {
+            let id = try XCTUnwrap(library.enqueue(track, namespace: "a", quality: quality))
+            library.complete(id, filename: "\(track.id).m4a", bytes: 100)
+        }
+        XCTAssertEqual(status().savedCount, 2)
+        XCTAssertTrue(status().isComplete)
+    }
+
+    func testFailedAndCancelledBatchesDoNotCountAsCompleted() throws {
+        let track = try song()
+        var library = DownloadLibrary()
+        let id = try XCTUnwrap(library.enqueue(track, namespace: "a", quality: DownloadQuality()))
+        library.enqueue(track, namespace: "b", quality: DownloadQuality())
+        library.enqueue(try song("unrelated"), namespace: "a", quality: DownloadQuality())
+        library.jobs[0].state = .failed
+        let failed = DownloadBatchStatus(library: library, songs: [track], namespace: "a", quality: DownloadQuality())
+        XCTAssertEqual(failed.jobs.map(\.id), [id])
+        XCTAssertFalse(failed.isComplete)
+        library.jobs.removeAll { $0.id == id }
+        let cancelled = DownloadBatchStatus(
+            library: library, songs: [track], namespace: "a", quality: DownloadQuality())
+        XCTAssertTrue(cancelled.jobs.isEmpty)
+        XCTAssertFalse(cancelled.isComplete)
+        let empty = DownloadBatchStatus(library: library, songs: [], namespace: "a", quality: DownloadQuality())
+        XCTAssertFalse(empty.isComplete)
+    }
+
     func testHTTPAndSubsonicErrorsAreNeverAcceptedAsAudio() {
         let audio = Data([0x49, 0x44, 0x33, 0x04, 0x00])
         XCTAssertNil(DownloadLibrary.responseError(status: 200, prefix: audio))

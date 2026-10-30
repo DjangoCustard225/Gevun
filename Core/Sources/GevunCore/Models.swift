@@ -75,6 +75,8 @@ public struct Song: Codable, Identifiable, Hashable, Sendable {
     public let duration: Int?
     public let track: Int?
     public let discNumber: Int?
+    public let year: Int?
+    public let genre: String?
     public let suffix: String?
     public let bitRate: Int?
     public let size: Int64?
@@ -140,18 +142,6 @@ public struct Artist: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-public struct Playlist: Codable, Identifiable, Hashable, Sendable {
-    public let id: String
-    public let name: String
-    public let comment: String?
-    public let owner: String?
-    public let coverArt: String?
-    public let songCount: Int?
-    public let duration: Int?
-    public let entry: [Song]?
-    public var songs: [Song] { entry ?? [] }
-}
-
 public struct SearchResults: Codable, Sendable {
     public let album: [Album]?
     public let artist: [Artist]?
@@ -208,5 +198,16 @@ public enum TimeLabel {
 
     public static func duration(_ seconds: Int) -> String {
         seconds >= 3600 ? "\(seconds / 3600) hr \((seconds % 3600) / 60) min" : "\(max(0, seconds) / 60) min"
+    }
+}
+
+public struct SavedPlayQueue: Decodable, Sendable {
+    public let current: String?
+    public let position: Double?
+    public let entry: [Song]?
+    public var songs: [Song] { entry ?? [] }
+    public var index: Int { songs.firstIndex { $0.id == current } ?? 0 }
+    public var seconds: Double {
+        guard let position, position.isFinite else { return 0 }; return max(0, position / 1000)
     }
 }

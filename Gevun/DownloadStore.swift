@@ -19,6 +19,7 @@ final class DownloadStore {
     private(set) var storageError: String?
     var wifiOnly: Bool {
         didSet {
+            guard wifiOnly != oldValue else { return }
             UserDefaults.standard.set(wifiOnly, forKey: "downloadsWiFiOnly")
             // Each request captures the cellular policy. Recreate unfinished requests when it changes.
             for id in Array(active.keys) { restart(id) }
@@ -37,7 +38,7 @@ final class DownloadStore {
     @ObservationIgnored private var reconciling = true
     @ObservationIgnored private var configurationRevision = UUID()
     @ObservationIgnored private var backgroundEventsFinished = false
-    @ObservationIgnored var backgroundCompletion: (() -> Void)?
+    @ObservationIgnored private var backgroundCompletion: (() -> Void)?
 
     static let sessionIdentifier = "app.gevun.music.downloads"
 
@@ -152,6 +153,17 @@ final class DownloadStore {
         guard let copy = library.copies.first(where: { $0.key == key }) else { return nil }
         let url = root.appendingPathComponent(copy.filename)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func exportSource(for copy: OfflineSong) -> DownloadExportSource {
+        let instance = instances[copy.key.namespace]
+        let album = copy.song.albumId.flatMap { savedAlbum($0, namespace: copy.key.namespace) }
+        let artwork = instance.flatMap { instance in
+            (copy.song.coverArt ?? album?.coverArt).map { artworkURL($0, instance: instance) }
+        }
+        return DownloadExportSource(
+            copy: copy, url: root.appendingPathComponent(copy.filename), album: album,
+            artworkURL: artwork, lyricsURL: lyricsURL(copy.key), instance: connected ? instance : nil)
     }
 
     func savedAlbum(_ id: String, namespace: String) -> Album? {
@@ -434,13 +446,14 @@ final class DownloadStore {
     private func cacheMetadata() {
         guard metadataTask == nil, canTransfer else { return }
         let copies = library.copies
+        let cachedKeys = Set(copies.map(\.key))
         metadataTask = Task { [weak self] in
             defer {
                 self?.metadataTask = nil
                 if let self, self.canTransfer,
                     Task.isCancelled
                         || self.library.copies.contains(where: { current in
-                            !copies.contains(where: { $0.key == current.key })
+                            !cachedKeys.contains(current.key)
                         })
                 {
                     self.cacheMetadata()
@@ -453,7 +466,7 @@ final class DownloadStore {
                 guard let instance = self.instances[key.namespace] else { continue }
                 let api = NavidromeAPI(instance: instance)
                 if let albumID = copy.song.albumId, self.savedAlbum(albumID, namespace: key.namespace) == nil,
-                    let album = try? await api.album(albumID), self.library.copies.contains(where: { $0.key == key })
+                    let album = try? await api.album(albumID), self.savedKeys.contains(key)
                 {
                     self.library.remember(album, namespace: key.namespace)
                     self.persist()
@@ -467,7 +480,7 @@ final class DownloadStore {
                     let url = self.artworkURL(artID, instance: instance)
                     if !FileManager.default.fileExists(atPath: url.path),
                         let data = try? await api.artwork(artID, size: 1200),
-                        self.library.copies.contains(where: { $0.key == key })
+                        self.savedKeys.contains(key)
                     {
                         try? data.write(to: url, options: .atomic)
                     }
@@ -475,7 +488,7 @@ final class DownloadStore {
                 let lyricsURL = self.lyricsURL(key)
                 if !FileManager.default.fileExists(atPath: lyricsURL.path),
                     let lyrics = try? await api.lyrics(for: copy.song),
-                    self.library.copies.contains(where: { $0.key == key })
+                    self.savedKeys.contains(key)
                 {
                     try? JSONEncoder().encode(lyrics).write(to: lyricsURL, options: .atomic)
                 }
@@ -489,8 +502,8 @@ final class DownloadStore {
                 [copy.song.coverArt, copy.song.albumId.flatMap { savedAlbum($0, namespace: namespace)?.coverArt }]
                     .compactMap { $0 }.map(Self.digest)
             })
+        let prefix = namespace + "-art-"
         for file in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
-            let prefix = namespace + "-art-"
             if file.lastPathComponent.hasPrefix(prefix),
                 !used.contains(String(file.deletingPathExtension().lastPathComponent.dropFirst(prefix.count)))
             {

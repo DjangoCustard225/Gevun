@@ -16,7 +16,7 @@ struct GevunApp: App {
     }
 }
 
-private enum AppTab: Hashable { case albums, artists, songs, search, settings }
+private enum AppTab: Hashable { case albums, artists, songs, settings, search }
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
