@@ -22,7 +22,7 @@
             let song = try JSONDecoder().decode(
                 Song.self,
                 from: Data(
-                    #"{"id":"1","title":"Title 曲","artist":"Singer","albumArtist":"The Band","album":"Record","track":2,"discNumber":1,"year":2026,"genre":"Jazz"}"#
+                    #"{"id":"1","title":"Title 曲","artist":"Singer","albumArtist":"The Band","album":"Record","track":2,"discNumber":1,"year":2026,"genre":"Jazz","displayComposer":"Composer","comment":"Notes","bpm":120}"#
                         .utf8))
             let lyrics = [StructuredLyrics(line: [LyricLine(value: "A lyric line")])]
             let artwork = try XCTUnwrap(
@@ -36,12 +36,16 @@
                 (AVMetadataIdentifier.iTunesMetadataSongName, "Title 曲"),
                 (.iTunesMetadataArtist, "Singer"), (.iTunesMetadataAlbumArtist, "The Band"),
                 (.iTunesMetadataAlbum, "Record"), (.iTunesMetadataLyrics, "A lyric line"),
+                (.iTunesMetadataComposer, "Composer"), (.iTunesMetadataUserComment, "Notes"),
                 (.iTunesMetadataReleaseDate, "2026"), (.iTunesMetadataUserGenre, "Jazz"),
             ] {
                 let item = try XCTUnwrap(tags.first { $0.identifier == identifier })
                 let value = try await item.load(.stringValue)
                 XCTAssertEqual(value, expected)
             }
+            let tempo = try XCTUnwrap(tags.first { $0.identifier == .iTunesMetadataBeatsPerMin })
+            let tempoValue = try await tempo.load(.numberValue)
+            XCTAssertEqual(tempoValue?.intValue, 120)
             let cover = try XCTUnwrap(tags.first { $0.identifier == .iTunesMetadataCoverArt })
             let coverData = try await cover.load(.dataValue)
             XCTAssertEqual(coverData, artwork)

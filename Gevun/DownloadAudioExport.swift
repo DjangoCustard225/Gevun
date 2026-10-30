@@ -79,8 +79,9 @@ enum DownloadAudioExport {
         if data == nil, !Task.isCancelled, let id = source.copy.song.coverArt ?? album?.coverArt, let api {
             data = try? await api.artwork(id, size: 1200)
         }
-        // Use widely supported JPEG artwork for exported audio tags.
-        return data.flatMap { UIImage(data: $0)?.jpegData(compressionQuality: 0.95) }
+        guard let data, let image = UIImage(data: data) else { return nil }
+        if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) || data.starts(with: [0xFF, 0xD8, 0xFF]) { return data }
+        return image.jpegData(compressionQuality: 0.95)
     }
 
     private static func makeTemporaryDirectory() throws -> URL {

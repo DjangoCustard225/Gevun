@@ -36,6 +36,11 @@ public enum TaggedFLACExport {
         comments.add("ALBUM", metadata.album)
         comments.add("DATE", metadata.year.map(String.init), aliases: ["YEAR"])
         comments.add("GENRE", metadata.genre)
+        comments.add("COMPOSER", metadata.composer)
+        comments.add("COMMENT", metadata.comment, aliases: ["DESCRIPTION"])
+        comments.add("BPM", metadata.bpm.map(String.init))
+        comments.add("DISCTOTAL", metadata.discCount.map(String.init), aliases: ["TOTALDISCS"])
+        for tag in metadata.extraTags { comments.add(tag.key, tag.value) }
         if let track = metadata.track, track > 0 { comments.add("TRACKNUMBER", String(track)) }
         if let total = metadata.trackCount, total > 0 {
             comments.add("TRACKTOTAL", String(total), aliases: ["TOTALTRACKS"])
@@ -45,7 +50,13 @@ public enum TaggedFLACExport {
         comments.add("UNSYNCEDLYRICS", metadata.lyrics)
         let commentBlock = Block(type: 4, data: try comments.encoded())
         if let commentIndex { blocks[commentIndex] = commentBlock } else { blocks.append(commentBlock) }
-        if !blocks.contains(where: { $0.type == 6 }), let artwork = metadata.artwork {
+        let hasFrontCover = blocks.contains { block in
+            guard block.type == 6 else { return false }
+            guard block.data.count >= 4 else { return true }
+            let type = block.data.prefix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+            return type == 3 || type > 20  // Preserve opaque picture blocks conservatively.
+        }
+        if !hasFrontCover, let artwork = metadata.artwork {
             blocks.append(Block(type: 6, data: picture(artwork)))
         }
         var header = Data("fLaC".utf8)

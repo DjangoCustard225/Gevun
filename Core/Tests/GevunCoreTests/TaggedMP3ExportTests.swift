@@ -22,14 +22,14 @@ final class TaggedMP3ExportTests: XCTestCase {
             ], artwork: Data([0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0, 0xFF, 0xD9]))
     }
 
-    private func export(_ original: Data) async throws -> Data {
+    private func export(_ original: Data, metadata supplied: DownloadExportMetadata? = nil) async throws -> Data {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("source.mp3")
         let destination = directory.appendingPathComponent("export.mp3")
         try original.write(to: source)
-        try await TaggedMP3Export.write(from: source, to: destination, metadata: metadata())
+        try await TaggedMP3Export.write(from: source, to: destination, metadata: supplied ?? metadata())
         XCTAssertEqual(try Data(contentsOf: source), original)
         let exported = try Data(contentsOf: destination)
         XCTAssertEqual(Data(exported.suffix(audio.count)), audio, "All audio bytes must remain unchanged")
@@ -50,6 +50,35 @@ final class TaggedMP3ExportTests: XCTestCase {
         let header = Data("ID3".utf8) + Data([version, 0, flags]) + size(body.count)
         let footer = flags & 0x10 != 0 ? Data("3DI".utf8) + header.dropFirst(3) : Data()
         return header + body + footer
+    }
+
+    func testRichTagsKeepExistingUserTextAndAddDistinctDescriptors() async throws {
+        let song = try JSONDecoder().decode(
+            Song.self,
+            from: Data(
+                #"{"id":"1","title":"Track","displayComposer":"Composer","bpm":120,"musicBrainzId":"new-id","replayGain":{"trackGain":-3,"albumGain":-2}}"#
+                    .utf8))
+        let metadata = DownloadExportMetadata(song: song, album: nil, lyrics: [], artwork: nil)
+        let existing = frame(
+            "TXXX", value: Data([3]) + Data("MusicBrainz Track Id".utf8) + Data([0]) + Data("original-id".utf8))
+        let result = try await export(tag(version: 4, body: existing) + audio, metadata: metadata)
+        XCTAssertNotNil(result.range(of: existing))
+        XCTAssertNil(result.range(of: Data("new-id".utf8)))
+        for value in ["TCOM", "TBPM", "replaygain_track_gain", "replaygain_album_gain"] {
+            XCTAssertNotNil(result.range(of: Data(value.utf8)))
+        }
+    }
+
+    func testMissingFrontCoverDoesNotReplaceBackCover() async throws {
+        let back = frame("APIC", value: Data([3]) + Data("image/jpeg".utf8) + Data([0, 4, 0, 1, 2, 3]))
+        let result = try await export(tag(version: 4, body: back) + audio)
+        XCTAssertNotNil(result.range(of: back))
+        var count = 0
+        var offset = result.startIndex
+        while let range = result.range(of: Data("APIC".utf8), in: offset..<result.endIndex) {
+            count += 1; offset = range.upperBound
+        }
+        XCTAssertEqual(count, 2)
     }
 
     func testUntaggedAudioGetsStandardTagsAndBothLyricFrames() async throws {

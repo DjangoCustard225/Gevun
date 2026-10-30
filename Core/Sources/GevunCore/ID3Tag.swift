@@ -8,6 +8,9 @@ struct ID3Tag {
     private var flags: UInt8 = 0
     private var frames = Data()
     private var identifiers = Set<String>()
+    private var descriptors = Set<String>()
+    private var opaqueUserText = false
+    private var frontCoverPresent = false
 
     var textEncoding: UInt8 { version == 4 ? 3 : 1 }
     var textTerminator: Data { Data(repeating: 0, count: textEncoding == 1 ? 2 : 1) }
@@ -57,10 +60,57 @@ struct ID3Tag {
             let size = try integer(body[offset + 4..<offset + 8], synchsafe: tag.version == 4)
             guard size > 0, size <= body.count - offset - 10 else { throw MP3ExportError.corruptTag }
             tag.identifiers.insert(String(decoding: id, as: UTF8.self))
+            if String(decoding: id, as: UTF8.self) == "TXXX" {
+                var payload = Array(body[offset + 10..<offset + 10 + size])
+                let frameFlags = body[offset + 9]
+                if tag.version == 4 && (frameFlags & 2 != 0 || tag.flags & 0x80 != 0) {
+                    payload = deunsynchronised(payload)
+                }
+                if body[offset + 8] != 0 || frameFlags & (tag.version == 4 ? 0xFD : 0xFF) != 0 {
+                    tag.opaqueUserText = true
+                } else if let descriptor = userTextDescriptor(payload) {
+                    tag.descriptors.insert(descriptor.lowercased())
+                } else {
+                    tag.opaqueUserText = true
+                }
+            }
+            if String(decoding: id, as: UTF8.self) == "APIC" {
+                var payload = Array(body[offset + 10..<offset + 10 + size])
+                let frameFlags = body[offset + 9]
+                if tag.version == 4 && (frameFlags & 2 != 0 || tag.flags & 0x80 != 0) {
+                    payload = deunsynchronised(payload)
+                }
+                if body[offset + 8] != 0 || frameFlags & (tag.version == 4 ? 0xFD : 0xFF) != 0 {
+                    tag.frontCoverPresent = true
+                } else if let end = payload.dropFirst().firstIndex(of: 0), end + 1 < payload.count {
+                    let type = payload[end + 1]
+                    tag.frontCoverPresent = tag.frontCoverPresent || type == 3 || type > 20
+                } else {
+                    tag.frontCoverPresent = true
+                }
+            }
             tag.frames.append(contentsOf: body[offset..<offset + 10 + size])
             offset += 10 + size
         }
         return tag
+    }
+
+    private static func userTextDescriptor(_ bytes: [UInt8]) -> String? {
+        guard let encoding = bytes.first else { return nil }
+        let value = Array(bytes.dropFirst())
+        if encoding == 0 || encoding == 3 {
+            guard let end = value.firstIndex(of: 0) else { return nil }
+            return String(data: Data(value[..<end]), encoding: encoding == 3 ? .utf8 : .isoLatin1)
+        }
+        guard encoding == 1 || encoding == 2 else { return nil }
+        var end = 0
+        while end + 1 < value.count {
+            if value[end] == 0 && value[end + 1] == 0 {
+                return String(data: Data(value[..<end]), encoding: encoding == 1 ? .utf16 : .utf16BigEndian)
+            }
+            end += 2
+        }
+        return nil
     }
 
     func text(_ value: String) -> Data {
@@ -74,8 +124,16 @@ struct ID3Tag {
         try addFrame(id, payload: Data([textEncoding]) + text(value))
     }
 
-    mutating func addFrame(_ id: String, payload: Data) throws {
-        guard !identifiers.contains(id) else { return }
+    mutating func addFrame(_ id: String, payload: Data, descriptor: String? = nil) throws {
+        if let descriptor {
+            guard !opaqueUserText, !descriptors.contains(descriptor.lowercased()) else { return }
+            descriptors.insert(descriptor.lowercased())
+        } else if id == "APIC" {
+            guard !frontCoverPresent else { return }
+            frontCoverPresent = true
+        } else if identifiers.contains(id) {
+            return
+        }
         var bytes = payload
         var frameFlags: UInt8 = 0
         if version == 4 {

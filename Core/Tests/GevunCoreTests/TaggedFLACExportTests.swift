@@ -46,14 +46,14 @@ final class TaggedFLACExportTests: XCTestCase {
         return result + audio
     }
 
-    private func exported(_ original: Data) async throws -> Data {
+    private func exported(_ original: Data, metadata supplied: DownloadExportMetadata? = nil) async throws -> Data {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("source.flac")
         let destination = directory.appendingPathComponent("export.flac")
         try original.write(to: source)
-        try await TaggedFLACExport.write(from: source, to: destination, metadata: metadata())
+        try await TaggedFLACExport.write(from: source, to: destination, metadata: supplied ?? metadata())
         XCTAssertEqual(try Data(contentsOf: source), original)
         let result = try Data(contentsOf: destination)
         XCTAssertEqual(Data(result.suffix(audio.count)), audio)
@@ -72,6 +72,35 @@ final class TaggedFLACExportTests: XCTestCase {
             if type & 128 != 0 { return blocks }
         }
         throw CocoaError(.fileReadCorruptFile)
+    }
+
+    func testRichTagsSupplementButNeverOverwriteExistingValues() async throws {
+        let song = try JSONDecoder().decode(
+            Song.self,
+            from: Data(
+                #"{"id":"1","title":"Track","displayComposer":"New composer","bpm":90,"comment":"Notes","musicBrainzId":"new-id","replayGain":{"trackGain":-2}}"#
+                    .utf8))
+        let metadata = DownloadExportMetadata(song: song, album: nil, lyrics: [], artwork: nil)
+        let result = try await exported(
+            file([(4, comments(["COMPOSER=Original composer", "MUSICBRAINZ_TRACKID=original-id"]))]), metadata: metadata
+        )
+        let tags = try XCTUnwrap(try blocks(in: result).first { $0.type == 4 }?.data)
+        for value in [
+            "COMPOSER=Original composer", "MUSICBRAINZ_TRACKID=original-id", "BPM=90", "COMMENT=Notes",
+            "REPLAYGAIN_TRACK_GAIN=-2.00000000 dB",
+        ] {
+            XCTAssertNotNil(tags.range(of: Data(value.utf8)))
+        }
+        XCTAssertNil(tags.range(of: Data("New composer".utf8)))
+    }
+
+    func testMissingFrontCoverIsAddedAlongsideExistingBackCover() async throws {
+        let back = Data([0, 0, 0, 4]) + Data("back artwork".utf8)
+        let result = try await exported(file([(6, back)]))
+        let pictures = try blocks(in: result).filter { $0.type == 6 }
+        XCTAssertEqual(pictures.count, 2)
+        XCTAssertTrue(pictures.contains { $0.data == back })
+        XCTAssertTrue(pictures.contains { $0.data.prefix(4) == Data([0, 0, 0, 3]) })
     }
 
     func testMissingCommentsArtworkAndLyricsAreAddedWithoutTouchingAudio() async throws {

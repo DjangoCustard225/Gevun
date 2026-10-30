@@ -46,6 +46,28 @@ final class DownloadExportTests: XCTestCase {
         XCTAssertNil(metadata.artwork)
     }
 
+    func testRichServerCreditsAndDiscTotals() throws {
+        let song = try JSONDecoder().decode(
+            Song.self,
+            from: Data(
+                #"{"id":"1","title":"Track","artist":"Legacy","displayArtist":"Singer & Guest","genres":[{"name":"Jazz"},{"name":"Soul"}],"displayComposer":"Composer","bpm":120,"comment":"Notes","musicBrainzId":"mb-id","isrc":["CODE"],"replayGain":{"trackGain":-4.2},"discNumber":2,"track":1}"#
+                    .utf8))
+        let album = try JSONDecoder().decode(
+            Album.self,
+            from: Data(
+                #"{"id":"a","name":"Album","songCount":3,"song":[{"id":"x","title":"X","track":1,"discNumber":1},{"id":"1","title":"Track","track":1,"discNumber":2},{"id":"2","title":"Y","track":2,"discNumber":2}]}"#
+                    .utf8))
+        let metadata = DownloadExportMetadata(song: song, album: album, lyrics: [], artwork: nil)
+        XCTAssertEqual(metadata.artist, "Singer & Guest")
+        XCTAssertEqual(metadata.genre, "Jazz; Soul")
+        XCTAssertEqual(metadata.composer, "Composer")
+        XCTAssertEqual(metadata.bpm, 120)
+        XCTAssertEqual(metadata.trackCount, 2)
+        XCTAssertEqual(metadata.discCount, 2)
+        XCTAssertTrue(metadata.extraTags.contains { $0.key == "MUSICBRAINZ_TRACKID" && $0.value == "mb-id" })
+        XCTAssertTrue(metadata.extraTags.contains { $0.key == "REPLAYGAIN_TRACK_GAIN" && $0.value == "-4.20000000 dB" })
+    }
+
     func testMetadataCannotCreateHiddenFilesOrPaths() throws {
         let copies = [
             try copy(title: "../Song\\?\u{0}<>\n", artist: "../AC/DC:"),

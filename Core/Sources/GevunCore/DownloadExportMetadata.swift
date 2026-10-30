@@ -13,19 +13,60 @@ public struct DownloadExportMetadata: Sendable {
     public let lyrics: String?
     public let timedLyrics: StructuredLyrics?
     public let artwork: Data?
+    public let composer: String?
+    public let comment: String?
+    public let bpm: Int?
+    public let discCount: Int?
+    public let extraTags: [(key: String, value: String)]
 
     public init(song: Song, album: Album?, lyrics: [StructuredLyrics], artwork: Data?) {
         title = ArtistCredit.nonempty(song.title) ?? "Untitled"
-        artist = ArtistCredit.nonempty(song.artist) ?? song.artistName
+        artist =
+            ArtistCredit.display(song.displayArtist, credits: song.artists, fallback: song.artist) ?? song.artistName
         albumArtist = song.artistName
         self.album = ArtistCredit.nonempty(song.album) ?? album?.name
         year = song.year ?? album?.year
-        genre = ArtistCredit.nonempty(song.genre) ?? album?.genre
+        genre =
+            ArtistCredit.nonempty(song.genres?.map(\.name).joined(separator: "; ")) ?? ArtistCredit.nonempty(song.genre)
+            ?? album?.genre
         track = song.track
-        // Album song counts span multiple discs and aren't necessarily the track count of this disc.
-        trackCount =
-            (song.discNumber ?? 1) == 1 && !(album?.songs.contains { ($0.discNumber ?? 1) > 1 } ?? false)
-            ? album?.songCount : nil
+        let completeAlbum = album.flatMap { value -> [Song]? in
+            guard let count = value.songCount, count > 0, value.songs.count == count else { return nil }
+            return value.songs
+        }
+        if let completeAlbum {
+            let discTracks = completeAlbum.filter { ($0.discNumber ?? 1) == (song.discNumber ?? 1) }
+            let numbers = discTracks.compactMap(\.track)
+            trackCount =
+                numbers.count == discTracks.count && Set(numbers) == Set(1...max(1, discTracks.count))
+                ? discTracks.count : nil
+            discCount = completeAlbum.map { $0.discNumber ?? 1 }.max()
+        } else {
+            trackCount = nil
+            discCount = nil
+        }
+        composer = ArtistCredit.nonempty(song.displayComposer)
+        comment = ArtistCredit.nonempty(song.comment)
+        bpm = song.bpm.flatMap { $0 > 0 ? $0 : nil }
+        var extras: [(key: String, value: String)] = []
+        if let id = ArtistCredit.nonempty(song.musicBrainzId) { extras.append(("MUSICBRAINZ_TRACKID", id)) }
+        for isrc in song.isrc ?? [] { if let value = ArtistCredit.nonempty(isrc) { extras.append(("ISRC", value)) } }
+        if let gain = song.replayGain {
+            for (key, value) in [
+                ("REPLAYGAIN_TRACK_GAIN", gain.trackGain), ("REPLAYGAIN_ALBUM_GAIN", gain.albumGain),
+                ("REPLAYGAIN_TRACK_PEAK", gain.trackPeak), ("REPLAYGAIN_ALBUM_PEAK", gain.albumPeak),
+            ] {
+                if let value, value.isFinite {
+                    extras.append(
+                        (
+                            key,
+                            String(format: "%.8f", locale: Locale(identifier: "en_US_POSIX"), value)
+                                + (key.hasSuffix("GAIN") ? " dB" : "")
+                        ))
+                }
+            }
+        }
+        extraTags = extras
         disc = song.discNumber
         let available = lyrics.filter(\.hasContent)
         timedLyrics = available.first(where: \.synced)

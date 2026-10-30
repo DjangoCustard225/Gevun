@@ -7,6 +7,12 @@
     public enum TaggedAACExport {
         public static func write(from source: URL, to destination: URL, metadata: DownloadExportMetadata) async throws {
             try Task.checkCancellation()
+            guard source.standardizedFileURL != destination.standardizedFileURL else {
+                throw CocoaError(.fileWriteInvalidFileName)
+            }
+            guard !FileManager.default.fileExists(atPath: destination.path) else {
+                throw CocoaError(.fileWriteFileExists)
+            }
             let asset = AVURLAsset(url: source)
             guard let track = try await asset.loadTracks(withMediaType: .audio).first,
                 let format = try await track.load(.formatDescriptions).first
@@ -16,7 +22,17 @@
             let writer = try AVAssetWriter(outputURL: destination, fileType: .m4a)
             let input = AVAssetWriterInput(mediaType: .audio, outputSettings: nil, sourceFormatHint: format)
             guard reader.canAdd(output), writer.canAdd(input) else { throw CocoaError(.fileWriteUnknown) }
-            writer.metadata = items(metadata, existing: try await asset.load(.metadata))
+            var existing = try await asset.load(.metadata)
+            for format in try await asset.load(.availableMetadataFormats) {
+                let known = Set(existing.compactMap(\.identifier))
+                let additional = try await asset.loadMetadata(for: format)
+                existing.append(
+                    contentsOf: additional.filter { item in
+                        item.identifier.map { !known.contains($0) } ?? false
+                    })
+            }
+            let expected = items(metadata, existing: existing)
+            writer.metadata = expected
             let provider = reader.outputProvider(for: output)
             let receiver = writer.inputReceiver(for: input)
             do {
@@ -33,12 +49,37 @@
                     await writer.finishWriting()
                     try Task.checkCancellation()
                     guard writer.status == .completed else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
-                    // Fail visibly if the container failed to retain the title instead of silently sharing untagged audio.
                     let exported = AVURLAsset(url: destination)
+                    guard try await exported.load(.isPlayable) else { throw CocoaError(.fileWriteUnknown) }
                     let tags = try await exported.load(.metadata)
-                    guard try await exported.load(.isPlayable),
-                        tags.contains(where: { $0.identifier == .iTunesMetadataSongName })
-                    else { throw CocoaError(.fileWriteUnknown) }
+                    let verified: Set<AVMetadataIdentifier> = [
+                        .iTunesMetadataSongName, .iTunesMetadataArtist,
+                        .iTunesMetadataAlbumArtist, .iTunesMetadataAlbum, .iTunesMetadataReleaseDate,
+                        .iTunesMetadataUserGenre, .iTunesMetadataLyrics, .iTunesMetadataCoverArt,
+                        .iTunesMetadataTrackNumber, .iTunesMetadataDiscNumber, .iTunesMetadataComposer,
+                        .iTunesMetadataUserComment, .iTunesMetadataBeatsPerMin,
+                    ]
+                    for item in expected where item.identifier.map(verified.contains) == true {
+                        var matched = false
+                        for actual in tags where actual.identifier == item.identifier {
+                            if let value = try await item.load(.stringValue),
+                                value == (try await actual.load(.stringValue))
+                            {
+                                matched = true; break
+                            }
+                            if let value = try await item.load(.dataValue),
+                                value == (try await actual.load(.dataValue))
+                            {
+                                matched = true; break
+                            }
+                            if let value = try await item.load(.numberValue),
+                                value == (try await actual.load(.numberValue))
+                            {
+                                matched = true; break
+                            }
+                        }
+                        guard matched else { throw CocoaError(.fileWriteUnknown) }
+                    }
                 } onCancel: {
                     reader.cancelReading()
                     writer.cancelWriting()
@@ -72,6 +113,13 @@
             text(.iTunesMetadataReleaseDate, metadata.year.map(String.init))
             text(.iTunesMetadataUserGenre, metadata.genre)
             text(.iTunesMetadataLyrics, metadata.lyrics)
+            text(.iTunesMetadataComposer, metadata.composer)
+            text(.iTunesMetadataUserComment, metadata.comment)
+            if let bpm = metadata.bpm {
+                add(
+                    .iTunesMetadataBeatsPerMin, value: NSNumber(value: UInt16(clamping: bpm)),
+                    type: kCMMetadataBaseDataType_UInt16)
+            }
             if let artwork = metadata.artwork {
                 let type =
                     artwork.starts(with: [0x89, 0x50, 0x4E, 0x47])
@@ -86,7 +134,8 @@
             }
             if let disc = metadata.disc, disc > 0 {
                 add(
-                    .iTunesMetadataDiscNumber, value: number(disc, total: nil, trailingPadding: false) as NSData,
+                    .iTunesMetadataDiscNumber,
+                    value: number(disc, total: metadata.discCount, trailingPadding: false) as NSData,
                     type: kCMMetadataBaseDataType_RawData)
             }
             return items

@@ -65,6 +65,16 @@ public struct Song: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let artist: String?
+    public let displayArtist: String?
+    public let artists: [ArtistCredit]?
+    public let genres: [MetadataGenre]?
+    public let displayComposer: String?
+    public let comment: String?
+    public let bpm: Int?
+    public let musicBrainzId: String?
+    public let isrc: [String]?
+    public let replayGain: MetadataReplayGain?
+
     public let displayAlbumArtist: String?
     public let albumArtists: [ArtistCredit]?
     public var albumArtist: String?
@@ -214,4 +224,12 @@ public struct SavedPlayQueue: Decodable, Sendable {
     public var seconds: Double {
         guard let position, position.isFinite else { return 0 }; return max(0, position / 1000)
     }
+}
+
+public struct MetadataGenre: Codable, Hashable, Sendable { public let name: String }
+public struct MetadataReplayGain: Codable, Hashable, Sendable {
+    public let trackGain: Double?
+    public let albumGain: Double?
+    public let trackPeak: Double?
+    public let albumPeak: Double?
 }

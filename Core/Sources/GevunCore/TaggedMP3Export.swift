@@ -22,11 +22,23 @@ private extension ID3Tag {
         try addText("TALB", metadata.album)
         try addText(version == 4 ? "TDRC" : "TYER", metadata.year.map(String.init))
         try addText("TCON", metadata.genre)
+        try addText("TCOM", metadata.composer)
+        try addText("TBPM", metadata.bpm.map(String.init))
+        if let comment = metadata.comment { try addFrame("COMM", payload: lyricsHeader() + text(comment)) }
+        try addText("TSRC", metadata.extraTags.first { $0.key == "ISRC" }?.value)
+        for tag in metadata.extraTags where tag.key != "ISRC" {
+            let descriptor = tag.key == "MUSICBRAINZ_TRACKID" ? "MusicBrainz Track Id" : tag.key.lowercased()
+            try addFrame(
+                "TXXX", payload: Data([textEncoding]) + text(descriptor) + textTerminator + text(tag.value),
+                descriptor: descriptor)
+        }
         if let track = metadata.track, track > 0 {
             let count = metadata.trackCount.flatMap { $0 > 0 ? "/\($0)" : nil } ?? ""
             try addText("TRCK", "\(track)\(count)")
         }
-        if let disc = metadata.disc, disc > 0 { try addText("TPOS", String(disc)) }
+        if let disc = metadata.disc, disc > 0 {
+            try addText("TPOS", String(disc) + (metadata.discCount.map { "/\($0)" } ?? ""))
+        }
         if let lyrics = metadata.lyrics {
             try addFrame("USLT", payload: lyricsHeader() + text(lyrics))
         }

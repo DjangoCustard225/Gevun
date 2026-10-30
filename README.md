@@ -36,7 +36,7 @@ Open Gevun and sign in with your server address, username, and password. You can
 
 Music streams from your server in its original format. Download songs or albums from their menus, then use the Downloaded filter to listen offline. Converted downloads depend on your server's transcoders and native format support on your device.
 
-Export saved songs from their menus, or export everything from Settings → Downloads. FLAC, AAC, and MP3 exports include available song details, cover artwork, and lyrics without encoding the audio again. FLAC and MP3 keep their existing tags. AAC uses M4A; MP3 and FLAC can also include timed lyrics.
+Export saved songs from their menus, or export everything from Settings → Downloads. FLAC, AAC, and MP3 exports include available song details, cover artwork, and lyrics without encoding the audio again. FLAC and MP3 keep their existing tags. AAC uses M4A; MP3 and FLAC can also include timed lyrics. Exports include available composer, tempo, and comments, and retain JPEG/PNG cover bytes. MP3 and FLAC also carry available MusicBrainz and ReplayGain tags.
 
 Manage automatic queue sync or manually transfer a queue from Settings → Listening queue.
 
