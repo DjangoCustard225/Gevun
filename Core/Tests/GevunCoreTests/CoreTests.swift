@@ -431,6 +431,56 @@ final class CoreTests: XCTestCase {
         }
     }
 
+    func testIndexQueueCapabilityPreservesDuplicateOccurrence() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.bodies = [
+            #"{"subsonic-response":{"status":"ok","openSubsonicExtensions":[{"name":"indexBasedQueue","versions":[1]}]}}"#,
+            #"{"subsonic-response":{"status":"ok","playQueueByIndex":{"currentIndex":1,"position":4500,"entry":[{"id":"same","title":"One"},{"id":"same","title":"One"}]}}}"#,
+            #"{"subsonic-response":{"status":"ok"}}"#,
+        ]
+        let response = try await api.savedQueue()
+        let saved = try XCTUnwrap(response)
+        XCTAssertEqual(saved.index, 1)
+        try await api.saveQueue(songs: saved.songs, index: saved.index, position: saved.seconds)
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "savePlayQueueByIndex.view")
+        let query = mutationParameters()
+        XCTAssertEqual(query.first { $0.name == "currentIndex" }?.value, "1")
+        XCTAssertEqual(query.filter { $0.name == "id" }.compactMap(\.value), ["same", "same"])
+    }
+
+    func testListeningSessionRoundTripPreservesQueueAndRejectsInvalidVersion() throws {
+        var queue = PlaybackQueue()
+        queue.replace(try decodeSongs(), startingAt: 1, shuffle: true)
+        queue.repeatMode = .all
+        let session = ListeningSession(queue: queue, position: 12.5)
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(ListeningSession.self, from: data)
+        XCTAssertTrue(decoded.isValid)
+        XCTAssertEqual(decoded.position, 12.5)
+        XCTAssertEqual(decoded.queue.songs.map(\.id), queue.songs.map(\.id))
+        XCTAssertEqual(decoded.queue.index, queue.index)
+        XCTAssertEqual(decoded.queue.repeatMode, .all)
+        var restored = decoded.queue
+        restored.toggleShuffle()
+        XCTAssertEqual(restored.songs.map(\.id), ["1", "2", "3"])
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object["version"] = 99
+        let unsupported = try JSONDecoder().decode(
+            ListeningSession.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertFalse(unsupported.isValid)
+        XCTAssertFalse(ListeningSession(queue: PlaybackQueue(), position: 0).isValid)
+        XCTAssertThrowsError(try JSONDecoder().decode(ListeningSession.self, from: Data("broken".utf8)))
+    }
+
+    func testRestoredUnknownDurationRetainsPositionWithoutCountingListening() {
+        var timeline = PlaybackTimeline()
+        timeline.restorePosition(45)
+        XCTAssertEqual(timeline.elapsed, 45)
+        XCTAssertEqual(timeline.listeningTime, 0)
+        timeline.updatePreciseDuration(30)
+        XCTAssertEqual(timeline.elapsed, 30)
+    }
+
     private func mutationParameters() -> [URLQueryItem] {
         let request = FixtureProtocol.lastRequest!
         XCTAssertEqual(request.httpMethod, "POST")

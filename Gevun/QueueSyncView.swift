@@ -2,13 +2,20 @@ import SwiftUI
 import GevunCore
 
 struct QueueSyncView: View {
+    @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
     @EnvironmentObject private var interface: PlaybackInterfaceState
     @State private var busy = false
     @State private var message: String?
 
     var body: some View {
+        @Bindable var sync = store.player.listening
         Form {
+            Section {
+                Toggle("Automatic queue sync", isOn: $sync.automatic).tint(theme.switchTint)
+            } footer: {
+                Text("Restore your queue paused when Gevun starts. A copy stays on this device for offline listening.")
+            }
             Section {
                 Button("Save current queue", systemImage: "icloud.and.arrow.up") {
                     Task { await transfer(restoring: false) }
@@ -21,6 +28,7 @@ struct QueueSyncView: View {
                     "Save your queue and playback position to Navidrome, then resume it on another compatible device. Resuming replaces your current queue and starts playback."
                 )
             }
+            if let status = sync.status { Text(status).foregroundStyle(.secondary) }
             if busy { ProgressView() }
             if let message { Text(message).foregroundStyle(.secondary) }
         }
@@ -41,9 +49,7 @@ struct QueueSyncView: View {
                 store.player.restore(saved)
                 message = "Resumed saved queue."
             } else {
-                try await api.saveQueue(
-                    songs: store.player.queue.songs, index: store.player.queue.index, position: store.player.elapsed)
-                message = "Queue saved to Navidrome."
+                await store.player.listening.saveManually()
             }
         } catch { message = friendlyError(error) }
     }

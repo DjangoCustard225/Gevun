@@ -25,6 +25,12 @@ public struct PlaybackTimeline: Sendable {
         }
     }
 
+    public mutating func restorePosition(_ seconds: Double) {
+        guard seconds.isFinite else { return }
+        elapsed = bounded(seconds)
+        previousTime = nil
+    }
+
     public mutating func updateAssetDuration(_ seconds: Double) {
         // Navidrome's track length is stable; a streamed asset's estimate may change.
         guard !hasReliableDuration, seconds.isFinite, seconds > 0 else { return }

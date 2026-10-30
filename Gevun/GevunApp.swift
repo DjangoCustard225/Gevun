@@ -19,6 +19,7 @@ struct GevunApp: App {
 private enum AppTab: Hashable { case albums, artists, songs, settings, search }
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppStore.self) private var store
     @EnvironmentObject private var interface: PlaybackInterfaceState
     @EnvironmentObject private var appearance: ArtworkAppearance
@@ -30,6 +31,9 @@ struct RootView: View {
     var body: some View {
         @Bindable var store = store
         appContent
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { store.player.listening.checkpoint(urgent: true) }
+            }
             .downloadPresentation()
             .background {
                 PlayerPresentation(store: store, isPresented: interface.expanded, reduceMotion: reduceMotion)

@@ -1,8 +1,8 @@
 import Foundation
 
-public enum RepeatMode: String, CaseIterable, Sendable { case off, all, one }
+public enum RepeatMode: String, CaseIterable, Codable, Sendable { case off, all, one }
 
-public struct PlaybackQueue: Sendable {
+public struct PlaybackQueue: Codable, Sendable {
     public private(set) var songs: [Song] = []
     public private(set) var index: Int = 0
     public var repeatMode: RepeatMode = .off

@@ -20,7 +20,7 @@ A music player for your Navidrome library on iPhone and iPad.
 - Download songs and albums for offline listening, in original quality or a smaller supported format.
 - Export downloaded songs to Files or share them with other apps.
 - Add songs to your queue, play next, and repeat tracks or albums.
-- Save your queue to Navidrome and resume it on another compatible device.
+- Automatically save your queue and restore it paused, with offline recovery and Navidrome sync.
 - Share listening links for songs and albums when enabled on your server.
 - Read artist biographies and discover similar artists.
 - Switch between multiple Navidrome servers.
@@ -38,7 +38,7 @@ Music streams from your server in its original format. Download songs or albums 
 
 Export saved songs from their menus, or export everything from Settings → Downloads. FLAC, AAC, and MP3 exports include available song details, cover artwork, and lyrics without encoding the audio again. FLAC and MP3 keep their existing tags. AAC uses M4A; MP3 and FLAC can also include timed lyrics.
 
-Save or resume a server queue from Settings → Listening queue.
+Manage automatic queue sync or manually transfer a queue from Settings → Listening queue.
 
 ## Privacy
 

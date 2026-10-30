@@ -26,6 +26,22 @@ public final class SameOriginRedirects: NSObject, URLSessionTaskDelegate, @unche
 
 public final class NavidromeAPI: @unchecked Sendable {
     public let instance: Instance
+    private let queueSupport = QueueSupport()
+    private actor QueueSupport {
+        private var supported: Bool?
+        func usesIndex(_ api: NavidromeAPI) async -> Bool {
+            if let supported { return supported }
+            do {
+                let response = try await api.request("getOpenSubsonicExtensions")
+                let value =
+                    response.openSubsonicExtensions?.contains {
+                        $0.name == "indexBasedQueue" && $0.versions.contains(1)
+                    } ?? false
+                supported = value
+                return value
+            } catch { return false }
+        }
+    }
     private let session: URLSession
     public init(instance: Instance, session: URLSession? = nil) {
         self.instance = instance
@@ -138,15 +154,20 @@ public final class NavidromeAPI: @unchecked Sendable {
     }
 
     public func savedQueue() async throws -> SavedPlayQueue? {
-        try await request("getPlayQueue").playQueue
+        if await queueSupport.usesIndex(self) {
+            return try await request("getPlayQueueByIndex").playQueueByIndex
+        }
+        return try await request("getPlayQueue").playQueue
     }
 
     public func saveQueue(songs: [Song], index: Int, position: Double) async throws {
         guard songs.indices.contains(index), position.isFinite else { return }
+        let indexed = await queueSupport.usesIndex(self)
         _ = try await request(
-            "savePlayQueue",
+            indexed ? "savePlayQueueByIndex" : "savePlayQueue",
             songs.map { item("id", $0.id) } + [
-                item("current", songs[index].id), item("position", Int64(max(0, position) * 1000)),
+                (indexed ? item("currentIndex", index) : item("current", songs[index].id)),
+                item("position", Int64(min(max(0, position), Double(Int64.max / 1000)) * 1000)),
                 item("changedBy", "Gevun"),
             ], post: true)
     }
@@ -265,6 +286,8 @@ private struct Response: Decodable {
     let lyrics: LegacyLyrics?
     let searchResult3: SearchResults?
     let playQueue: SavedPlayQueue?
+    let playQueueByIndex: SavedPlayQueue?
+    let openSubsonicExtensions: [QueueExtension]?
     let shares: Shares?
 }
 private struct APIError: Decodable { let code: Int }
@@ -280,3 +303,5 @@ private struct LegacyLyrics: Decodable {
 
 private struct Shares: Decodable { let share: [ServerShare]? }
 private struct ServerShare: Decodable { let url: String }
+
+private struct QueueExtension: Decodable { let name: String; let versions: [Int] }

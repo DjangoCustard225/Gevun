@@ -202,11 +202,15 @@ public enum TimeLabel {
 }
 
 public struct SavedPlayQueue: Decodable, Sendable {
+    public let currentIndex: Int?
     public let current: String?
     public let position: Double?
     public let entry: [Song]?
     public var songs: [Song] { entry ?? [] }
-    public var index: Int { songs.firstIndex { $0.id == current } ?? 0 }
+    public var index: Int {
+        if let currentIndex, songs.indices.contains(currentIndex) { return currentIndex }
+        return songs.firstIndex { $0.id == current } ?? 0
+    }
     public var seconds: Double {
         guard let position, position.isFinite else { return 0 }; return max(0, position / 1000)
     }

@@ -74,6 +74,7 @@ final class AppStore {
 
     func activate(_ id: UUID) {
         guard let instance = instances.first(where: { $0.id == id }) else { return }
+        player.listening.checkpoint(urgent: true)
         player.stop()
         activeID = id
         downloadNamespace = DownloadKey.namespace(for: instance)
@@ -86,6 +87,7 @@ final class AppStore {
     func remove(_ id: UUID) throws {
         let saved = instances.filter { $0.id != id }
         try Credentials.save(saved)
+        let removed = instances.first(where: { $0.id == id })
         instances = saved
         downloads.configure(instances: saved)
         if activeID == id {
@@ -93,6 +95,7 @@ final class AppStore {
                 activate(first.id)
             } else {
                 player.stop()
+                player.configure(api: nil)
                 api = nil
                 activeID = nil
                 downloadNamespace = nil
@@ -100,6 +103,7 @@ final class AppStore {
                 clearLibrary()
             }
         }
+        if let removed { player.listening.remove(instance: removed) }
     }
 
     private func clearLibrary() {

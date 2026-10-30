@@ -17,9 +17,12 @@ final class PlaybackInterfaceState: ObservableObject {
 @MainActor
 final class PlayerStore: ObservableObject {
     let interface = PlaybackInterfaceState()
+    lazy var listening = ListeningSessionStore(player: self)
+    private(set) var interactionRevision = 0
     @Published private(set) var queue = PlaybackQueue() {
         didSet {
             interface.queue = queue
+            listening.changed()
         }
     }
     @Published private(set) var isPlaying = false {
@@ -170,14 +173,18 @@ final class PlayerStore: ObservableObject {
             })
     }
 
-    func configure(api: NavidromeAPI?) { self.api = api }
+    func configure(api: NavidromeAPI?) { self.api = api; listening.configure(api) }
     func play(_ songs: [Song], at index: Int = 0, shuffle: Bool = false) {
+        interactionRevision += 1
+        listening.changed()
         guard !songs.isEmpty else { return }
         queue.replace(songs, startingAt: index, shuffle: shuffle)
         loadCurrent()
     }
 
     func add(_ song: Song, next: Bool) {
+        interactionRevision += 1
+        listening.changed()
         if current == nil {
             play([song])
             return
@@ -186,6 +193,8 @@ final class PlayerStore: ObservableObject {
     }
 
     func select(_ index: Int) {
+        interactionRevision += 1
+        listening.changed()
         guard queue.songs.indices.contains(index) else { return }
         queue.select(index)
         loadCurrent()
@@ -193,14 +202,20 @@ final class PlayerStore: ObservableObject {
 
     func toggle() { wantsPlayback ? pause() : resume() }
     func pause() {
+        interactionRevision += 1
+        listening.changed()
         wantsPlayback = false
         resumeAfterInterruption = false
         player.pause()
         tick()
+        listening.checkpoint(urgent: true)
         updateNowPlaying()
     }
     func resume() {
+        interactionRevision += 1
+        listening.changed()
         guard current != nil else { return }
+        if player.currentItem == nil { loadCurrent(startAt: elapsed); return }
         if error != nil {
             loadCurrent()
             return
@@ -217,6 +232,8 @@ final class PlayerStore: ObservableObject {
 
     func retry() { loadCurrent() }
     func seek(_ seconds: Double) {
+        interactionRevision += 1
+        listening.changed()
         guard let item = player.currentItem, item.status == .readyToPlay else { return }
         refreshTiming(for: item)
         guard canSeek else { return }
@@ -235,6 +252,7 @@ final class PlayerStore: ObservableObject {
                     self.timeline.completeSeek(request, at: item.currentTime().seconds)
                 else { return }
                 self.publishTimeline()
+                self.listening.checkpoint(urgent: true)
                 self.updateNowPlaying()
                 let reachedEnd = self.endDuringSeek
                 self.endDuringSeek = false
@@ -245,6 +263,8 @@ final class PlayerStore: ObservableObject {
     }
 
     func previous() {
+        interactionRevision += 1
+        listening.changed()
         if elapsed > 3 {
             seek(0)
         } else if queue.index > 0 {
@@ -256,6 +276,8 @@ final class PlayerStore: ObservableObject {
     }
 
     func next(automatic: Bool = false) {
+        interactionRevision += 1
+        listening.changed()
         if queue.advance(automatic: automatic) {
             loadCurrent()
         } else if automatic {
@@ -266,6 +288,8 @@ final class PlayerStore: ObservableObject {
     }
 
     func cycleRepeat() {
+        interactionRevision += 1
+        listening.changed()
         switch queue.repeatMode {
         case .off: queue.repeatMode = .all
         case .all: queue.repeatMode = .one
@@ -314,7 +338,22 @@ final class PlayerStore: ObservableObject {
         try session.setActive(true)
     }
 
+    func restorePaused(_ saved: ListeningSession) {
+        guard saved.isValid else { return }
+        cancelItemWork()
+        player.pause(); player.replaceCurrentItem(with: nil)
+        playbackID = UUID(); wantsPlayback = false; resumePosition = nil
+        isPlaying = false; buffering = false; error = nil; canSeek = false; expanded = false
+        queue = saved.queue
+        timeline.reset(duration: Double(current?.duration ?? 0))
+        timeline.restorePosition(saved.position)
+        publishTimeline()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
     func restore(_ saved: SavedPlayQueue) {
+        interactionRevision += 1
+        listening.changed()
         guard !saved.songs.isEmpty else { return }
         queue.replace(saved.songs, startingAt: saved.index)
         loadCurrent(startAt: saved.seconds)
@@ -326,6 +365,7 @@ final class PlayerStore: ObservableObject {
         self.playbackID = playbackID
         resumePosition = startAt > 0 ? startAt : nil
         timeline.reset(duration: Double(song.duration ?? 0))
+        timeline.restorePosition(startAt)
         publishTimeline()
         error = nil
         canSeek = false
