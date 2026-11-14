@@ -590,7 +590,21 @@ private final class FixtureProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.lastRequest = request
+        // Apple's URLSession hands protocols the body as a stream; Linux keeps `httpBody`.
+        var captured = request
+        if captured.httpBody == nil, let stream = request.httpBodyStream {
+            var body = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            stream.open()
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                body.append(buffer, count: count)
+            }
+            stream.close()
+            captured.httpBody = body
+        }
+        Self.lastRequest = captured
         client?.urlProtocol(
             self,
             didReceive: HTTPURLResponse(

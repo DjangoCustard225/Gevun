@@ -70,7 +70,8 @@
             var data = Data()
             while let sample = try await provider.next() {
                 let bytes: Data = try sample.withUnsafeSampleBuffer { buffer in
-                    let block = try XCTUnwrap(CMSampleBufferGetDataBuffer(buffer))
+                    // Marker samples (such as end-of-stream) carry no audio bytes.
+                    guard let block = CMSampleBufferGetDataBuffer(buffer) else { return Data() }
                     var bytes = Data(count: CMBlockBufferGetDataLength(block))
                     let count = bytes.count
                     let status = bytes.withUnsafeMutableBytes {
