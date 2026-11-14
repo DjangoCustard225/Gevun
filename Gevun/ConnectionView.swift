@@ -25,7 +25,7 @@ struct ConnectionView: View {
             case .address: "Server address"
             case .username: "Username"
             case .password: "Password"
-            case .name: "Instance name"
+            case .name: "Server name"
             }
         }
         var next: Self? {
@@ -145,7 +145,7 @@ struct ConnectionView: View {
         case .name:
             TextField("Name (optional)", text: $name)
                 .focused($focus, equals: .name).submitLabel(.go).onSubmit { advance(.name) }
-                .accessibilityLabel("Instance name, optional")
+                .accessibilityLabel("Server name, optional")
         }
     }
 

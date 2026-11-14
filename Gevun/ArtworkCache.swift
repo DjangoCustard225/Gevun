@@ -31,7 +31,7 @@ final class ArtworkCache {
             // Bound the decoded size even when a server ignores the requested thumbnail size.
             let prepared = await source.byPreparingThumbnail(ofSize: CGSize(width: size, height: size))
             guard !Task.isCancelled else { return nil }
-            return prepared
+            return prepared ?? source
         }
         tasks[key] = task
         let result = await task.value

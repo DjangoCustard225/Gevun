@@ -123,7 +123,7 @@ struct NowPlayingView: View {
         }
         .alert(
             "Artist unavailable",
-            isPresented: Binding(get: { artistError != nil }, set: { if !$0 { artistError = nil } })
+            isPresented: $artistError.isPresent()
         ) {
             Button("OK", role: .cancel) { artistError = nil }
         } message: {

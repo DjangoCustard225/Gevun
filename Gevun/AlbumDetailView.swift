@@ -34,30 +34,20 @@ struct AlbumDetailView: View {
     private var hasMultipleDiscs: Bool { songs.contains { ($0.discNumber ?? 1) > 1 } }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ArtworkHeaderView(id: displayedAlbum.coverArt ?? album.coverArt)
-                VStack(spacing: 24) {
-                    albumHeading
-                    playButton
-                    if let message { ErrorCard(message: message) { Task { await load() } } }
-                    if loading {
-                        ProgressView().accessibilityLabel("Loading album")
-                            .frame(maxWidth: .infinity).padding(.vertical, 24)
-                    } else if detail != nil && songs.isEmpty {
-                        ContentUnavailableView("No tracks available", systemImage: "music.note")
-                    }
-                    if !songs.isEmpty { trackList }
-                }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 28)
-            }.frame(maxWidth: 640).frame(maxWidth: .infinity)
-                .background { NativeScrollToTop().frame(width: 0, height: 0) }
+        ArtworkPage(coverArt: displayedAlbum.coverArt ?? album.coverArt) {
+            VStack(spacing: 24) {
+                albumHeading
+                PlayButton(kind: "album", songs: songs)
+                if let message { ErrorState(message: message) { Task { await load() } } }
+                if loading {
+                    ProgressView().accessibilityLabel("Loading album")
+                        .frame(maxWidth: .infinity).padding(.vertical, 24)
+                } else if detail != nil && songs.isEmpty {
+                    ContentUnavailableView("No tracks available", systemImage: "music.note")
+                }
+                if !songs.isEmpty { trackList }
+            }
         }
-        .ignoresSafeArea(.container, edges: .top)
-        .navigationTitle("").navigationBarTitleDisplayMode(.inline)
-        .pageBackground()
-        .modifier(ArtworkScrollEdges())
-        .tint(.white)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
@@ -69,16 +59,8 @@ struct AlbumDetailView: View {
                         }
                     }
                     Button("Play album", systemImage: "play.fill") { player.play(songs) }
-                    Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") {
-                        if player.current == nil {
-                            player.play(songs)
-                        } else {
-                            songs.reversed().forEach { player.add($0, next: true) }
-                        }
-                    }
-                    Button("Add to queue", systemImage: "text.badge.plus") {
-                        songs.forEach { player.add($0, next: false) }
-                    }
+                    QueueActions(songs: songs)
+                    AddToPlaylistMenu(songs: songs)
                 } label: {
                     Image(systemName: "ellipsis").foregroundStyle(.white)
                 }
@@ -114,21 +96,6 @@ struct AlbumDetailView: View {
         }.multilineTextAlignment(.center).frame(maxWidth: .infinity)
     }
 
-    private var playButton: some View {
-        HStack {
-            Spacer(minLength: 0)
-            Button {
-                player.play(songs)
-            } label: {
-                Image(systemName: "play.fill").font(.system(size: 24, weight: .semibold))
-                    .offset(x: 2).frame(width: 44, height: 44)
-            }.buttonStyle(.glass).controlSize(.large).buttonBorderShape(.circle)
-                .foregroundStyle(.white).disabled(songs.isEmpty)
-                .accessibilityLabel("Play album").accessibilityHint("Play songs in album order")
-            Spacer(minLength: 0)
-        }
-    }
-
     private var trackList: some View {
         let multipleDiscs = hasMultipleDiscs
         let albumArtist = displayedAlbum.artistName
@@ -149,10 +116,7 @@ struct AlbumDetailView: View {
                     Divider().overlay(theme.border).padding(.leading, 34)
                 }
             }
-            Text(
-                "\(songs.count) \(songs.count == 1 ? "song" : "songs") · \(TimeLabel.duration(songs.reduce(0) { $0 + ($1.duration ?? 0) }))"
-            )
-            .font(.caption).foregroundStyle(theme.secondary).padding(.top, 20)
+            Text(songs.summary).font(.caption).foregroundStyle(theme.secondary).padding(.top, 20)
         }
     }
 
@@ -191,14 +155,15 @@ struct AlbumDetailView: View {
     }
 }
 
-private struct AlbumTrackRow: View {
+/// A numbered track row, shared by album and playlist pages.
+struct AlbumTrackRow: View {
     @Environment(\.appTheme) private var theme
-    @Environment(AppStore.self) private var store
     @EnvironmentObject private var interface: PlaybackInterfaceState
-    private var player: PlayerStore { store.player }
     let song: Song
     let number: Int
     let showArtist: Bool
+    /// Adds "Remove from Playlist" to the row's menu.
+    var remove: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
@@ -207,7 +172,7 @@ private struct AlbumTrackRow: View {
                 HStack(spacing: 10) {
                     Group {
                         if interface.current?.id == song.id {
-                            Image(systemName: "waveform").foregroundStyle(theme.accent)
+                            PlayingIndicator()
                         } else {
                             Text(String(number)).foregroundStyle(theme.secondary).monospacedDigit()
                         }
@@ -225,11 +190,7 @@ private struct AlbumTrackRow: View {
                 }.frame(minHeight: 56).contentShape(Rectangle()).padding(.vertical, 4)
             }.buttonStyle(.plain)
             Menu {
-                Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") {
-                    player.add(song, next: true)
-                }
-                Button("Add to queue", systemImage: "text.badge.plus") { player.add(song, next: false) }
-                SongDownloadActions(song: song)
+                SongActions(song: song, remove: remove)
             } label: {
                 Image(systemName: "ellipsis").font(.body).foregroundStyle(theme.secondary)
                     .frame(width: 36, height: 44).contentShape(Rectangle())

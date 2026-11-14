@@ -70,6 +70,7 @@ struct DownloadedSongRow: View {
                 store.player.add(copy.song, next: true)
             }
             Button("Add to queue", systemImage: "text.badge.plus") { store.player.add(copy.song, next: false) }
+            AddToPlaylistMenu(songs: [copy.song])
         }
         Section {
             ServerShareButton(ids: [copy.song.id])

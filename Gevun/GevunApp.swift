@@ -1,4 +1,5 @@
 import SwiftUI
+import GevunCore
 
 @main
 struct GevunApp: App {
@@ -16,7 +17,9 @@ struct GevunApp: App {
     }
 }
 
-private enum AppTab: Hashable { case albums, artists, songs, settings, search }
+private enum AppTab: Hashable {
+    case library, settings, search
+}
 
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -24,7 +27,7 @@ struct RootView: View {
     @EnvironmentObject private var interface: PlaybackInterfaceState
     @EnvironmentObject private var appearance: ArtworkAppearance
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selection = AppTab.albums
+    @State private var selection = AppTab.library
     @State private var searchQuery = ""
     @State private var searchPresented = false
 
@@ -42,21 +45,17 @@ struct RootView: View {
             .accessibilityHidden(interface.expanded)
             .background(AppBackground())
             .sheet(isPresented: $store.showConnection) {
-                ConnectionView()
-                    .environment(store)
-                    .presentationDragIndicator(.visible)
+                ConnectionView().environment(store).presentationDragIndicator(.visible)
             }
-            .alert("Gevun", isPresented: Binding(get: { store.notice != nil }, set: { if !$0 { store.notice = nil } }))
-        {
-            Button("OK", role: .cancel) { store.notice = nil }
-        } message: {
-            Text(store.notice ?? "")
-        }
+            .noticeAlert()
             .environment(\.appTheme, appearance.theme.oled)
             .tint(appearance.theme.accent)
+            // Song menus inside the player's queue sheet present their own prompt.
+            .newPlaylistPrompt(isActive: !interface.expanded)
+            .task(id: store.sessionID) { await store.ensurePlaylists() }
             .onChange(of: store.sessionID) { _, _ in
                 store.downloadSelection = nil
-                searchPresented = false; searchQuery = ""; selection = .albums
+                searchPresented = false; searchQuery = ""; selection = .library
             }
             .task(id: "\(interface.expanded):\(store.sessionID):\(interface.current?.coverArt ?? "")") {
                 guard !interface.expanded else { return }
@@ -72,16 +71,10 @@ struct RootView: View {
                 ConnectionView(firstConnection: true)
             } else {
                 TabView(selection: $selection) {
-                    Tab("Albums", systemImage: "square.stack", value: .albums) {
-                        NavigationStack { LibraryView(category: .albums) }.id(store.sessionID)
+                    Tab("Library", systemImage: "music.note.square.stack", value: AppTab.library) {
+                        NavigationStack { LibraryHomeView() }.id(store.sessionID)
                     }
-                    Tab("Artists", systemImage: "person.2", value: .artists) {
-                        NavigationStack { LibraryView(category: .artists) }.id(store.sessionID)
-                    }
-                    Tab("Songs", systemImage: "music.note", value: .songs) {
-                        NavigationStack { LibraryView(category: .songs) }.id(store.sessionID)
-                    }
-                    Tab("Settings", systemImage: "gearshape", value: .settings) {
+                    Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                         NavigationStack { SettingsView() }
                     }
                     Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
@@ -101,6 +94,23 @@ struct RootView: View {
                     MiniPlayer()
                 }
             }
+        }
+    }
+}
+
+extension View {
+    /// Shows `AppStore.notice`.
+    fileprivate func noticeAlert() -> some View { modifier(NoticeAlert()) }
+}
+
+private struct NoticeAlert: ViewModifier {
+    @Environment(AppStore.self) private var store
+    func body(content: Content) -> some View {
+        @Bindable var store = store
+        content.alert("Gevun", isPresented: $store.notice.isPresent()) {
+            Button("OK", role: .cancel) { store.notice = nil }
+        } message: {
+            Text(store.notice ?? "")
         }
     }
 }

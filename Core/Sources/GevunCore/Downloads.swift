@@ -77,6 +77,13 @@ public struct DownloadJob: Codable, Identifiable, Sendable {
     public let quality: DownloadQuality
     public var state: State = .queued
     public var error: String?
+    /// A size guess for when the server streams a transcode without a Content-Length.
+    public var estimatedBytes: Int64? {
+        if quality.format == .original { return song.size.flatMap { $0 > 0 ? $0 : nil } }
+        guard let duration = song.duration, duration > 0 else { return nil }
+        return Int64(duration) * Int64(quality.bitrate) * 125
+    }
+
     public init(key: DownloadKey, song: Song, quality: DownloadQuality) {
         id = UUID()
         self.key = key

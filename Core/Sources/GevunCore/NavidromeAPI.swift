@@ -114,43 +114,40 @@ public final class NavidromeAPI: @unchecked Sendable {
         return [response.type ?? "Navidrome", response.serverVersion].compactMap { $0 }.joined(separator: " ")
     }
 
-    public func albums(type: String = "alphabeticalByName", offset: Int = 0, size: Int = 60) async throws -> [Album] {
+    /// Requests `endpoint` and returns the payload at `key`, failing when the server leaves it out.
+    private func payload<Value>(
+        _ endpoint: String, _ parameters: [URLQueryItem] = [], fresh: Bool = false,
+        at key: KeyPath<Response, Value?>
+    ) async throws -> Value {
         let response = try await request(
-            "getAlbumList2", [item("type", type), item("offset", offset), item("size", size)])
-        guard let list = response.albumList2 else { throw GevunError.invalidResponse }
-        return list.album ?? []
+            endpoint, parameters, cachePolicy: fresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy)
+        guard let value = response[keyPath: key] else { throw GevunError.invalidResponse }
+        return value
+    }
+
+    public func albums(type: String = "alphabeticalByName", offset: Int = 0, size: Int = 60) async throws -> [Album] {
+        try await payload(
+            "getAlbumList2", [item("type", type), item("offset", offset), item("size", size)], at: \.albumList2
+        ).album ?? []
     }
 
     public func album(_ id: String) async throws -> Album {
-        guard let album = try await request("getAlbum", [item("id", id)]).album else {
-            throw GevunError.invalidResponse
-        }
-        return album
+        try await payload("getAlbum", [item("id", id)], at: \.album)
     }
 
     public func artists() async throws -> [Artist] {
-        guard let artists = try await request("getArtists").artists else { throw GevunError.invalidResponse }
-        return (artists.index ?? []).flatMap { $0.artist ?? [] }
+        let list: ArtistList = try await payload("getArtists", at: \.artists)
+        return (list.index ?? []).flatMap { $0.artist ?? [] }
     }
 
     public func artist(_ id: String) async throws -> Artist {
-        guard
-            let artist = try await request("getArtist", [item("id", id)], cachePolicy: .reloadIgnoringLocalCacheData)
-                .artist
-        else {
-            throw GevunError.invalidResponse
-        }
-        return artist
+        try await payload("getArtist", [item("id", id)], fresh: true, at: \.artist)
     }
 
     public func artistInfo(_ id: String) async throws -> ArtistInfo {
-        guard
-            let info = try await request(
-                "getArtistInfo2", [item("id", id), item("count", 12), item("includeNotPresent", "false")],
-                cachePolicy: .reloadIgnoringLocalCacheData
-            ).artistInfo2
-        else { throw GevunError.invalidResponse }
-        return info
+        try await payload(
+            "getArtistInfo2", [item("id", id), item("count", 12), item("includeNotPresent", "false")],
+            fresh: true, at: \.artistInfo2)
     }
 
     public func savedQueue() async throws -> SavedPlayQueue? {
@@ -183,36 +180,65 @@ public final class NavidromeAPI: @unchecked Sendable {
     public func search(_ query: String, albumOffset: Int = 0, artistOffset: Int = 0, songOffset: Int = 0) async throws
         -> SearchResults
     {
-        guard
-            let result = try await request(
-                "search3",
-                [
-                    item("query", query), item("albumCount", 30), item("artistCount", 30),
-                    item("songCount", 30), item("albumOffset", albumOffset), item("artistOffset", artistOffset),
-                    item("songOffset", songOffset),
-                ]
-            ).searchResult3
-        else { throw GevunError.invalidResponse }
-        return result
+        try await payload(
+            "search3",
+            [
+                item("query", query), item("albumCount", 30), item("artistCount", 30),
+                item("songCount", 30), item("albumOffset", albumOffset), item("artistOffset", artistOffset),
+                item("songOffset", songOffset),
+            ], at: \.searchResult3)
     }
 
     public func songs(offset: Int = 0, size: Int = 100) async throws -> [Song] {
-        guard
-            let result = try await request(
-                "search3",
-                [
-                    item("query", ""), item("albumCount", 0), item("artistCount", 0),
-                    item("songCount", size), item("songOffset", offset),
-                ]
-            ).searchResult3
-        else { throw GevunError.invalidResponse }
-        return result.songs
+        try await payload(
+            "search3",
+            [
+                item("query", ""), item("albumCount", 0), item("artistCount", 0),
+                item("songCount", size), item("songOffset", offset),
+            ], at: \.searchResult3
+        ).songs
+    }
+
+    public func playlists() async throws -> [Playlist] {
+        try await payload("getPlaylists", fresh: true, at: \.playlists).playlist ?? []
+    }
+
+    public func playlist(_ id: String) async throws -> Playlist {
+        try await payload("getPlaylist", [item("id", id)], fresh: true, at: \.playlist)
+    }
+
+    /// Creates a playlist with `songIDs` in order. Older servers may not return the new playlist.
+    @discardableResult
+    public func createPlaylist(name: String, songIDs: [String]) async throws -> Playlist? {
+        try await request(
+            "createPlaylist", [item("name", Playlist.cleanName(name))] + songIDs.map { item("songId", $0) }, post: true
+        ).playlist
+    }
+
+    /// Replaces a playlist's songs with `songIDs`, used for reordering.
+    public func replacePlaylistSongs(_ id: String, songIDs: [String]) async throws {
+        _ = try await request(
+            "createPlaylist", [item("playlistId", id)] + songIDs.map { item("songId", $0) }, post: true)
+    }
+
+    /// Renames, appends songs, or removes entries by their position in the playlist.
+    public func updatePlaylist(
+        _ id: String, name: String? = nil, adding songIDs: [String] = [], removingIndexes indexes: [Int] = []
+    ) async throws {
+        var parameters = [item("playlistId", id)]
+        if let name { parameters.append(item("name", Playlist.cleanName(name))) }
+        parameters += songIDs.map { item("songIdToAdd", $0) }
+        parameters += indexes.map { item("songIndexToRemove", $0) }
+        _ = try await request("updatePlaylist", parameters, post: true)
+    }
+
+    public func deletePlaylist(_ id: String) async throws {
+        _ = try await request("deletePlaylist", [item("id", id)], post: true)
     }
 
     public func lyrics(for song: Song) async throws -> [StructuredLyrics] {
         do {
-            let response = try await request("getLyricsBySongId", [item("id", song.id)])
-            guard let list = response.lyricsList else { throw GevunError.invalidResponse }
+            let list: LyricsList = try await payload("getLyricsBySongId", [item("id", song.id)], at: \.lyricsList)
             return (list.structuredLyrics ?? []).filter(\.hasContent)
         } catch let error as GevunError {
             // Use the legacy endpoint only when the server cannot handle song-ID lyrics.
@@ -289,6 +315,8 @@ private struct Response: Decodable {
     let playQueueByIndex: SavedPlayQueue?
     let openSubsonicExtensions: [QueueExtension]?
     let shares: Shares?
+    let playlists: PlaylistList?
+    let playlist: Playlist?
 }
 private struct APIError: Decodable { let code: Int }
 private struct AlbumList: Decodable { let album: [Album]? }
@@ -301,6 +329,7 @@ private struct LegacyLyrics: Decodable {
     let value: String?
 }
 
+private struct PlaylistList: Decodable { let playlist: [Playlist]? }
 private struct Shares: Decodable { let share: [ServerShare]? }
 private struct ServerShare: Decodable { let url: String }
 

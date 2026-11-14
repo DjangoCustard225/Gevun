@@ -119,6 +119,23 @@ struct ID3Tag {
         return Data([0xFF, 0xFE]) + Data(value.utf16.flatMap { [UInt8($0 & 255), UInt8($0 >> 8)] })
     }
 
+    /// Drops frames with these IDs so a replacement can be written in their place.
+    mutating func removeFrames(_ ids: Set<String>) {
+        let bytes = [UInt8](frames)
+        var kept = Data()
+        var offset = 0
+        while bytes.count - offset >= 10 {
+            let id = String(decoding: bytes[offset..<offset + 4], as: UTF8.self)
+            guard let size = try? Self.integer(bytes[offset + 4..<offset + 8], synchsafe: version == 4),
+                offset + 10 + size <= bytes.count
+            else { return }
+            if !ids.contains(id) { kept.append(contentsOf: bytes[offset..<offset + 10 + size]) }
+            offset += 10 + size
+        }
+        frames = kept
+        identifiers.subtract(ids)
+    }
+
     mutating func addText(_ id: String, _ value: String?) throws {
         guard let value, !value.isEmpty else { return }
         try addFrame(id, payload: Data([textEncoding]) + text(value))

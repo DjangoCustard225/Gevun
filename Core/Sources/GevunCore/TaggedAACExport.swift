@@ -112,7 +112,7 @@
             text(.iTunesMetadataAlbum, metadata.album)
             text(.iTunesMetadataReleaseDate, metadata.year.map(String.init))
             text(.iTunesMetadataUserGenre, metadata.genre)
-            text(.iTunesMetadataLyrics, metadata.lyrics)
+            text(.iTunesMetadataLyrics, metadata.displayLyrics)
             text(.iTunesMetadataComposer, metadata.composer)
             text(.iTunesMetadataUserComment, metadata.comment)
             if let bpm = metadata.bpm {

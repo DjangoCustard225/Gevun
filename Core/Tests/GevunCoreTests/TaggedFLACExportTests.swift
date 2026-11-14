@@ -110,7 +110,7 @@ final class TaggedFLACExportTests: XCTestCase {
         let tags = try XCTUnwrap(blocks.first { $0.type == 4 }?.data)
         for value in [
             "TITLE=曲 🎵", "ARTIST=Singer", "ALBUMARTIST=Band", "TRACKNUMBER=2", "DISCNUMBER=1",
-            "LYRICS=[00:00.750]First line\n[00:02.250]次の行", "UNSYNCEDLYRICS=First line\n次の行",
+            "LYRICS=[00:00.750]First line\n[00:02.250]次の行",
         ] {
             XCTAssertNotNil(tags.range(of: Data(value.utf8)), "Missing \(value)")
         }
@@ -138,12 +138,14 @@ final class TaggedFLACExportTests: XCTestCase {
         XCTAssertEqual(after.filter { $0.type == 6 }.count, 1)
     }
 
-    func testCompleteMetadataCanExportByteIdentically() async throws {
+    func testCompleteMetadataWithSyncedLyricsCanExportByteIdentically() async throws {
         let keys = [
             "TITLE", "ARTIST", "ALBUMARTIST", "ALBUM", "DATE", "GENRE", "TRACKNUMBER", "DISCNUMBER",
-            "LYRICS", "UNSYNCEDLYRICS",
         ]
-        let original = file([(4, comments(keys.map { "\($0)=Original" })), (6, Data("Original artwork".utf8))])
+        let original = file([
+            (4, comments(keys.map { "\($0)=Original" } + ["LYRICS=[00:00.750]First line\n[00:02.250]次の行"])),
+            (6, Data("Original artwork".utf8)),
+        ])
         let result = try await exported(original)
         XCTAssertEqual(result, original)
     }

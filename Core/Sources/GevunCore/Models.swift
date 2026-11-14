@@ -233,3 +233,11 @@ public struct MetadataReplayGain: Codable, Hashable, Sendable {
     public let trackPeak: Double?
     public let albumPeak: Double?
 }
+
+extension Array where Element: Identifiable {
+    /// Keeps the first element for each ID, preserving order.
+    public func uniqued() -> [Element] {
+        var seen = Set<Element.ID>()
+        return filter { seen.insert($0.id).inserted }
+    }
+}

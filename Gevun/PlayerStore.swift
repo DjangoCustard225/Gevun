@@ -94,38 +94,28 @@ final class PlayerStore: ObservableObject {
                 self.updateNowPlaying()
             }
         }
+        observeCurrentItem(AVPlayerItem.didPlayToEndTimeNotification) { $0.didReachEnd($1) }
+        observeCurrentItem(AVPlayerItem.timeJumpedNotification) { store, _ in
+            guard store.timeline.pendingSeek == nil else { return }
+            store.tick()
+            store.updateNowPlaying(force: true)
+        }
+        observeCurrentItem(AVPlayerItem.failedToPlayToEndTimeNotification) { store, _ in
+            store.fail("Playback was interrupted by the server. Try this track again.")
+        }
+    }
+
+    /// Runs `handler` on the main actor when `name` is posted for the item that is playing now.
+    private func observeCurrentItem(
+        _ name: Notification.Name, _ handler: @escaping @MainActor (PlayerStore, AVPlayerItem) -> Void
+    ) {
         notifications.append(
-            NotificationCenter.default.addObserver(
-                forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main
-            ) { [weak self] event in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] event in
                 Task { @MainActor in
                     guard let self, let item = event.object as? AVPlayerItem, item === self.player.currentItem else {
                         return
                     }
-                    self.didReachEnd(item)
-                }
-            })
-        notifications.append(
-            NotificationCenter.default.addObserver(
-                forName: AVPlayerItem.timeJumpedNotification, object: nil, queue: .main
-            ) { [weak self] event in
-                Task { @MainActor in
-                    guard let self, let item = event.object as? AVPlayerItem, item === self.player.currentItem,
-                        self.timeline.pendingSeek == nil
-                    else { return }
-                    self.tick()
-                    self.updateNowPlaying(force: true)
-                }
-            })
-        notifications.append(
-            NotificationCenter.default.addObserver(
-                forName: AVPlayerItem.failedToPlayToEndTimeNotification, object: nil, queue: .main
-            ) { [weak self] event in
-                Task { @MainActor in
-                    guard let self, let item = event.object as? AVPlayerItem, item === self.player.currentItem else {
-                        return
-                    }
-                    self.fail("Playback was interrupted by the server. Try this track again.")
+                    handler(self, item)
                 }
             })
     }
@@ -175,16 +165,35 @@ final class PlayerStore: ObservableObject {
 
     func configure(api: NavidromeAPI?) { self.api = api; listening.configure(api) }
     func play(_ songs: [Song], at index: Int = 0, shuffle: Bool = false) {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         guard !songs.isEmpty else { return }
         queue.replace(songs, startingAt: index, shuffle: shuffle)
         loadCurrent()
     }
 
-    func add(_ song: Song, next: Bool) {
+    /// Starts `songs` from the top, or from a random track when shuffling.
+    func start(_ songs: [Song], shuffle: Bool = false) {
+        play(songs, at: shuffle && !songs.isEmpty ? Int.random(in: songs.indices) : 0, shuffle: shuffle)
+    }
+
+    /// Queues several songs in order, right after the current one or at the end.
+    func add(_ songs: [Song], next: Bool) {
+        if current == nil {
+            play(songs)
+        } else {
+            (next ? songs.reversed() : songs).forEach { queue.append($0, next: next) }
+            interacted()
+        }
+    }
+
+    /// Marks a user action so a pending queue restore doesn't overwrite it.
+    private func interacted() {
         interactionRevision += 1
         listening.changed()
+    }
+
+    func add(_ song: Song, next: Bool) {
+        interacted()
         if current == nil {
             play([song])
             return
@@ -193,8 +202,7 @@ final class PlayerStore: ObservableObject {
     }
 
     func select(_ index: Int) {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         guard queue.songs.indices.contains(index) else { return }
         queue.select(index)
         loadCurrent()
@@ -202,8 +210,7 @@ final class PlayerStore: ObservableObject {
 
     func toggle() { wantsPlayback ? pause() : resume() }
     func pause() {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         wantsPlayback = false
         resumeAfterInterruption = false
         player.pause()
@@ -212,8 +219,7 @@ final class PlayerStore: ObservableObject {
         updateNowPlaying()
     }
     func resume() {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         guard current != nil else { return }
         if player.currentItem == nil { loadCurrent(startAt: elapsed); return }
         if error != nil {
@@ -232,8 +238,7 @@ final class PlayerStore: ObservableObject {
 
     func retry() { loadCurrent() }
     func seek(_ seconds: Double) {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         guard let item = player.currentItem, item.status == .readyToPlay else { return }
         refreshTiming(for: item)
         guard canSeek else { return }
@@ -263,8 +268,7 @@ final class PlayerStore: ObservableObject {
     }
 
     func previous() {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         if elapsed > 3 {
             seek(0)
         } else if queue.index > 0 {
@@ -276,8 +280,7 @@ final class PlayerStore: ObservableObject {
     }
 
     func next(automatic: Bool = false) {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         if queue.advance(automatic: automatic) {
             loadCurrent()
         } else if automatic {
@@ -288,8 +291,7 @@ final class PlayerStore: ObservableObject {
     }
 
     func cycleRepeat() {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         switch queue.repeatMode {
         case .off: queue.repeatMode = .all
         case .all: queue.repeatMode = .one
@@ -352,8 +354,7 @@ final class PlayerStore: ObservableObject {
     }
 
     func restore(_ saved: SavedPlayQueue) {
-        interactionRevision += 1
-        listening.changed()
+        interacted()
         guard !saved.songs.isEmpty else { return }
         queue.replace(saved.songs, startingAt: saved.index)
         loadCurrent(startAt: saved.seconds)

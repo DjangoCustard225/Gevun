@@ -52,6 +52,14 @@ final class TaggedMP3ExportTests: XCTestCase {
         return header + body + footer
     }
 
+    func testSyncedLyricsReplaceExistingPlainLyrics() async throws {
+        let plain = frame("USLT", value: Data([0]) + Data("eng\0Plain words".utf8))
+        let result = try await export(tag(version: 3, body: plain) + audio)
+        XCTAssertNil(result.range(of: Data("Plain words".utf8)))
+        XCTAssertNotNil(result.range(of: Data("USLT".utf8)))
+        XCTAssertNil(result.range(of: Data("SYLT".utf8)))
+    }
+
     func testRichTagsKeepExistingUserTextAndAddDistinctDescriptors() async throws {
         let song = try JSONDecoder().decode(
             Song.self,
@@ -81,14 +89,13 @@ final class TaggedMP3ExportTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
-    func testUntaggedAudioGetsStandardTagsAndBothLyricFrames() async throws {
+    func testUntaggedAudioGetsStandardTagsAndOneLyricFrame() async throws {
         let exported = try await export(audio)
         XCTAssertEqual(exported.prefix(4), Data([0x49, 0x44, 0x33, 3]))
-        for id in ["TIT2", "TPE1", "TPE2", "TALB", "TRCK", "TPOS", "TYER", "TCON", "APIC", "USLT", "SYLT"] {
+        for id in ["TIT2", "TPE1", "TPE2", "TALB", "TRCK", "TPOS", "TYER", "TCON", "APIC", "USLT"] {
             XCTAssertNotNil(exported.range(of: Data(id.utf8)), "Missing \(id)")
         }
     }
-
     func testExistingV23AndV24FramesRemainUnchangedAndAreNotDuplicated() async throws {
         for version: UInt8 in [3, 4] {
             let title = frame("TIT2", value: Data([0]) + Data("Server title".utf8))

@@ -134,7 +134,11 @@ struct LyricsView: View {
                 }
             }
         }
-        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        // Swiping down also closes the sheet; the system draws this as a Liquid Glass ✕ for
+        // VoiceOver, Switch Control and anyone who doesn't know to swipe.
+        ToolbarItem(placement: .topBarTrailing) {
+            Button(role: .close) { dismiss() }
+        }
     }
 
     private func updateActiveLine(at seconds: Double) {

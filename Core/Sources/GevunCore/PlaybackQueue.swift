@@ -36,8 +36,16 @@ public struct PlaybackQueue: Codable, Sendable {
     public mutating func previous() { index = max(0, index - 1) }
     public mutating func select(_ index: Int) { if songs.indices.contains(index) { self.index = index } }
     public mutating func append(_ song: Song, next: Bool) {
+        let playing = current
         songs.insert(song, at: next && !songs.isEmpty ? index + 1 : songs.count)
-        original.append(song)
+        // Keep the unshuffled order in step so "Play next" survives toggling shuffle.
+        if !shuffled {
+            original = songs
+        } else if next, let playing, let position = original.firstIndex(where: { $0.id == playing.id }) {
+            original.insert(song, at: position + 1)
+        } else {
+            original.append(song)
+        }
     }
     public mutating func toggleShuffle() {
         guard let current else { return }

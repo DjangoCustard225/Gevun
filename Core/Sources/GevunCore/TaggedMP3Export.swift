@@ -39,10 +39,11 @@ private extension ID3Tag {
         if let disc = metadata.disc, disc > 0 {
             try addText("TPOS", String(disc) + (metadata.discCount.map { "/\($0)" } ?? ""))
         }
-        if let lyrics = metadata.lyrics {
+        // Synced lyrics replace any plain text already in the file instead of sitting beside it.
+        if metadata.lrcLyrics != nil { removeFrames(["USLT", "SYLT"]) }
+        if let lyrics = metadata.displayLyrics {
             try addFrame("USLT", payload: lyricsHeader() + text(lyrics))
         }
-        try addTimedLyrics(metadata.timedLines)
         if let artwork = metadata.artwork {
             let mime = artwork.starts(with: [0x89, 0x50, 0x4E, 0x47]) ? "image/png" : "image/jpeg"
             let header = Data([textEncoding]) + Data(mime.utf8) + Data([0, 3]) + text("") + textTerminator
@@ -50,19 +51,8 @@ private extension ID3Tag {
         }
     }
 
-    func lyricsHeader(synchronized: Bool = false) -> Data {
-        var header = Data([textEncoding]) + Data("und".utf8)
-        if synchronized { header.append(contentsOf: [2, 1]) }  // Millisecond timestamps, lyric content.
+    func lyricsHeader() -> Data {
+        let header = Data([textEncoding]) + Data("und".utf8)
         return header + text("") + textTerminator
-    }
-
-    mutating func addTimedLyrics(_ lines: [(text: String, milliseconds: UInt32)]) throws {
-        guard !lines.isEmpty else { return }
-        var data = lyricsHeader(synchronized: true)
-        for (index, line) in lines.enumerated() {
-            data.append(text((index == 0 ? "" : "\n") + line.text) + textTerminator)
-            data.append(contentsOf: Self.encodedInteger(Int(line.milliseconds), synchsafe: false))
-        }
-        try addFrame("SYLT", payload: data)
     }
 }

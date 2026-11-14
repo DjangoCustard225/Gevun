@@ -97,6 +97,59 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(items.first { $0.name == "songOffset" }?.value, "90")
     }
 
+    func testPlaylistListingDetailAndOwnership() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","playlists":{"playlist":[{"id":"p1","name":"Mine","owner":"User","public":true,"songCount":2,"coverArt":"pl-p1","changed":"2026-11-01T10:00:00.123Z"},{"id":"p2","name":"Smart","owner":"user","readonly":true}]}}}"#
+        let lists = try await api.playlists()
+        XCTAssertEqual(lists.map(\.id), ["p1", "p2"])
+        XCTAssertEqual(lists[0].isPublic, true)
+        XCTAssertNotNil(lists[0].changedDate)
+        XCTAssertTrue(lists[0].isEditable(by: "user"))
+        XCTAssertFalse(lists[1].isEditable(by: "user"))
+        XCTAssertFalse(lists[0].isEditable(by: "someone"))
+        XCTAssertTrue(lists[0].songs.isEmpty)
+
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","playlist":{"id":"p1","name":"Mine","entry":[{"id":"s1","title":"One"},{"id":"s1","title":"One"}]}}}"#
+        let detail = try await api.playlist("p1")
+        XCTAssertEqual(detail.songs.map(\.id), ["s1", "s1"])
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok"}}"#
+        do { _ = try await api.playlists(); XCTFail("Missing playlists payload must fail") } catch {
+            XCTAssertEqual(error as? GevunError, .invalidResponse)
+        }
+    }
+
+    func testPlaylistMutationsSendFormParameters() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","playlist":{"id":"p9","name":"Road"}}}"#
+        let created = try await api.createPlaylist(name: "  Road  ", songIDs: ["a", "b"])
+        XCTAssertEqual(created?.id, "p9")
+        var items = mutationParameters()
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "createPlaylist.view")
+        XCTAssertEqual(items.first { $0.name == "name" }?.value, "Road")
+        XCTAssertEqual(items.filter { $0.name == "songId" }.map(\.value), ["a", "b"])
+
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok"}}"#
+        try await api.updatePlaylist("p9", name: " ", adding: ["c"], removingIndexes: [3, 1])
+        items = mutationParameters()
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "updatePlaylist.view")
+        XCTAssertEqual(items.first { $0.name == "playlistId" }?.value, "p9")
+        XCTAssertEqual(items.first { $0.name == "name" }?.value, "New Playlist")
+        XCTAssertEqual(items.filter { $0.name == "songIdToAdd" }.map(\.value), ["c"])
+        XCTAssertEqual(items.filter { $0.name == "songIndexToRemove" }.map(\.value), ["3", "1"])
+
+        try await api.replacePlaylistSongs("p9", songIDs: ["b", "a"])
+        items = mutationParameters()
+        XCTAssertEqual(items.first { $0.name == "playlistId" }?.value, "p9")
+        XCTAssertNil(items.first { $0.name == "name" })
+        XCTAssertEqual(items.filter { $0.name == "songId" }.map(\.value), ["b", "a"])
+
+        try await api.deletePlaylist("p9")
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "deletePlaylist.view")
+        XCTAssertEqual(mutationParameters().first { $0.name == "id" }?.value, "p9")
+    }
+
     func testHTTPAndNonJSONFailures() async throws {
         let api = try fixtureAPI()
         FixtureProtocol.body = "<html>Login</html>"
@@ -333,6 +386,31 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(queue.shuffled)
         XCTAssertEqual(queue.songs, songs)
         XCTAssertEqual(queue.index, 1)
+    }
+
+    func testPlayNextKeepsItsPlaceWhenShuffleToggles() throws {
+        let songs = try decodeSongs()
+        let extra = try JSONDecoder().decode(Song.self, from: Data(#"{"id":"4","title":"Four"}"#.utf8))
+        var queue = PlaybackQueue()
+        queue.replace(songs, startingAt: 0)
+        queue.append(extra, next: true)
+        XCTAssertEqual(queue.songs.map(\.id), ["1", "4", "2", "3"])
+        queue.toggleShuffle()
+        queue.toggleShuffle()
+        XCTAssertEqual(queue.songs.map(\.id), ["1", "4", "2", "3"])
+
+        queue.replace(songs, startingAt: 1)
+        queue.toggleShuffle()
+        queue.append(extra, next: true)
+        XCTAssertEqual(queue.songs[1].id, "4")
+        queue.toggleShuffle()
+        XCTAssertEqual(queue.songs.map(\.id), ["1", "2", "4", "3"])
+        XCTAssertEqual(queue.current?.id, "2")
+
+        queue.toggleShuffle()
+        queue.append(extra, next: false)
+        queue.toggleShuffle()
+        XCTAssertEqual(queue.songs.map(\.id), ["1", "2", "4", "3", "4"])
     }
 
     func testArtistInfoRequestAndOptionalMetadata() async throws {

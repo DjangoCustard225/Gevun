@@ -12,9 +12,7 @@ struct PlayerDetailSheet<Content: View>: View {
     var body: some View {
         NavigationStack { content }
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
+                ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
             }
             .environment(\.appTheme, theme.oled)
             .preferredColorScheme(.dark)

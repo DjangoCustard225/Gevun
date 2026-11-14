@@ -13,8 +13,9 @@ struct PlayerQueueSheet: View {
                 }
                 .scrollEdgeEffectStyle(.soft, for: .vertical)
                 .navigationTitle("Queue").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
+        .newPlaylistPrompt()
         .listeningLinkPresentation()
         .downloadPresentation(fromPlayer: true)
     }
@@ -26,11 +27,14 @@ private struct PlayerQueueView: View {
     @EnvironmentObject private var interface: PlaybackInterfaceState
     private var player: PlayerStore { store.player }
     let onSelect: () -> Void
+    private var upNext: Int { max(0, interface.queue.songs.count - interface.queue.index - 1) }
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                Text("\(max(0, interface.queue.songs.count - interface.queue.index - 1)) tracks up next")
-                    .font(.caption).foregroundStyle(theme.secondary).padding(.bottom, 4)
+                if upNext > 0 {
+                    Text("\(upNext.counted("track")) up next")
+                        .font(.caption).foregroundStyle(theme.secondary).padding(.bottom, 4)
+                }
                 if let song = interface.current {
                     HStack(spacing: 10) {
                         ArtworkView(id: song.coverArt, size: 192).frame(width: 60, height: 60)
@@ -39,7 +43,7 @@ private struct PlayerQueueView: View {
                             Text(song.artistName).font(.caption).foregroundStyle(theme.secondary).lineLimit(1)
                         }
                         Spacer()
-                        Image(systemName: "waveform").foregroundStyle(theme.accent)
+                        PlayingIndicator()
                     }.padding(.vertical, 4)
                     Divider().overlay(theme.border).padding(.vertical, 8)
                 }
@@ -57,8 +61,14 @@ private struct PlayerQueueView: View {
                         }
                     }
                 } else {
-                    Text("You're at the end of the queue.").font(.subheadline).foregroundStyle(theme.secondary).padding(
-                        .vertical, 12)
+                    VStack(spacing: 6) {
+                        Image(systemName: "music.note.list").font(.title2)
+                            .foregroundStyle(theme.secondary).padding(.bottom, 4)
+                        Text("Nothing up next").font(.headline)
+                        Text("Choose Play next or Add to queue from any song’s menu.")
+                            .font(.subheadline).foregroundStyle(theme.secondary).multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 32).accessibilityElement(children: .combine)
                 }
             }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
         }.scrollIndicators(.hidden).scrollEdgeEffectStyle(.soft, for: .all)

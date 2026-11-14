@@ -46,8 +46,9 @@ public enum TaggedFLACExport {
             comments.add("TRACKTOTAL", String(total), aliases: ["TOTALTRACKS"])
         }
         if let disc = metadata.disc, disc > 0 { comments.add("DISCNUMBER", String(disc)) }
-        comments.add("LYRICS", metadata.lrcLyrics ?? metadata.lyrics)
-        comments.add("UNSYNCEDLYRICS", metadata.lyrics)
+        // Synced lyrics replace any plain text already in the file instead of sitting beside it.
+        if metadata.lrcLyrics != nil { comments.remove(["LYRICS", "UNSYNCEDLYRICS"]) }
+        comments.add("LYRICS", metadata.displayLyrics)
         let commentBlock = Block(type: 4, data: try comments.encoded())
         if let commentIndex { blocks[commentIndex] = commentBlock } else { blocks.append(commentBlock) }
         let hasFrontCover = blocks.contains { block in
@@ -116,6 +117,14 @@ public enum TaggedFLACExport {
             guard let value, !value.isEmpty, !([key] + aliases).contains(where: keys.contains) else { return }
             entries.append(Data("\(key)=\(value)".utf8))
             keys.insert(key)
+        }
+
+        mutating func remove(_ names: Set<String>) {
+            entries.removeAll { entry in
+                guard let separator = entry.firstIndex(of: 61) else { return false }
+                return names.contains(String(decoding: entry[..<separator], as: UTF8.self).uppercased())
+            }
+            keys.subtract(names)
         }
 
         func encoded() throws -> Data {

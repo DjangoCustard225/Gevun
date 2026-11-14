@@ -15,6 +15,18 @@ final class DownloadExportTests: XCTestCase {
             quality: DownloadQuality(format: .aac), filename: filename, bytes: 100)
     }
 
+    func testJobEstimatesSizeWhenServerSendsNoLength() throws {
+        let song = try JSONDecoder().decode(
+            Song.self,
+            from: JSONSerialization.data(withJSONObject: [
+                "id": "1", "title": "T", "duration": 200, "size": 9_000_000,
+            ]))
+        let key = DownloadKey(namespace: "s", songID: "1")
+        XCTAssertEqual(DownloadJob(key: key, song: song, quality: DownloadQuality()).estimatedBytes, 9_000_000)
+        let mp3 = DownloadJob(key: key, song: song, quality: DownloadQuality(format: .mp3, bitrate: 320))
+        XCTAssertEqual(mp3.estimatedBytes, 8_000_000)
+    }
+
     func testExportUsesAlbumArtistAndActualSavedFormat() throws {
         let names = DownloadExportNames.filenames(for: [try copy(title: "A song", artist: "The Band")])
         XCTAssertEqual(names, ["The Band - A song.m4a"])
@@ -42,6 +54,7 @@ final class DownloadExportTests: XCTestCase {
         XCTAssertEqual(metadata.artist, "Track artist")
         XCTAssertEqual(metadata.albumArtist, "Album artist")
         XCTAssertEqual(metadata.lyrics, "First line\n次の行")
+        XCTAssertEqual(metadata.displayLyrics, "[00:00.000]First line\n[00:01.000]次の行")
         XCTAssertNil(metadata.year)
         XCTAssertNil(metadata.artwork)
     }

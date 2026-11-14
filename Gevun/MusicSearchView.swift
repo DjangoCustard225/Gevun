@@ -19,33 +19,36 @@ struct MusicSearchView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if term.isEmpty {
-                    ContentUnavailableView(
-                        "Search your library", systemImage: "magnifyingglass",
-                        description: Text("Find albums, artists, and tracks.")
-                    ).padding(.top, 24)
-                } else {
-                    Picker("Search filter", selection: $filter) {
-                        ForEach(SearchFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented)
-                    if let message { ErrorCard(message: message) { Task { await search(more: false) } } }
-                    if !results.isEmpty { resultContent }
-                    if loading {
-                        ProgressView().accessibilityLabel("Searching").frame(maxWidth: .infinity).padding(.vertical, 20)
-                    } else if message == nil && visibleResultsEmpty {
-                        ContentUnavailableView.search(text: term)
-                    }
-                    if hasMore && message == nil {
-                        ScrollPaginationTrigger(enabled: !loading) { await search(more: true) }
-                            .id(
-                                "\(term):\(filter.rawValue):\(results.albums.count):\(results.artists.count):\(results.songs.count)"
-                            )
-                    }
+        Group {
+            if term.isEmpty {
+                // Centered on the page rather than pinned to the top of a scroll view.
+                ContentUnavailableView(
+                    "Search your library", systemImage: "magnifyingglass",
+                    description: Text("Find albums, artists, and tracks."))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Picker("Search filter", selection: $filter) {
+                            ForEach(SearchFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }.pickerStyle(.segmented)
+                        if let message { ErrorState(message: message) { Task { await search(more: false) } } }
+                        if !results.isEmpty { resultContent }
+                        if loading {
+                            ProgressView().accessibilityLabel("Searching").frame(maxWidth: .infinity).padding(
+                                .vertical, 20)
+                        } else if message == nil && visibleResultsEmpty {
+                            ContentUnavailableView.search(text: term)
+                        }
+                        if hasMore && message == nil {
+                            ScrollPaginationTrigger(enabled: !loading) { await search(more: true) }
+                                .id(
+                                    "\(term):\(filter.rawValue):\(results.albums.count):\(results.artists.count):\(results.songs.count)"
+                                )
+                        }
+                    }.padding(16).readingWidth()
+                        .background { NativeScrollToTop().frame(width: 0, height: 0) }
                 }
-            }.padding(16).readingWidth()
-                .background { NativeScrollToTop().frame(width: 0, height: 0) }
+            }
         }
         .navigationTitle("Search").pageBackground()
         .task(id: term) {
@@ -120,19 +123,14 @@ struct MusicSearchView: View {
         do {
             let page = try await api.search(term, albumOffset: offset.0, artistOffset: offset.1, songOffset: offset.2)
             guard !Task.isCancelled, revision == token, self.term == term, store.api === api else { return }
-            let albums = unique(old.albums + page.albums)
-            let artists = unique(old.artists + page.artists)
-            let songs = unique(old.songs + page.songs)
+            let albums = (old.albums + page.albums).uniqued()
+            let artists = (old.artists + page.artists).uniqued()
+            let songs = (old.songs + page.songs).uniqued()
             results = SearchResults(album: albums, artist: artists, song: songs)
             offsets = (offset.0 + page.albums.count, offset.1 + page.artists.count, offset.2 + page.songs.count)
             hasMore =
                 (page.albums.count == 30 || page.artists.count == 30 || page.songs.count == 30)
                 && (albums.count + artists.count + songs.count > old.albums.count + old.artists.count + old.songs.count)
         } catch { if !Task.isCancelled, revision == token { message = friendlyError(error) } }
-    }
-
-    private func unique<T: Identifiable>(_ values: [T]) -> [T] where T.ID: Hashable {
-        var ids = Set<T.ID>()
-        return values.filter { ids.insert($0.id).inserted }
     }
 }

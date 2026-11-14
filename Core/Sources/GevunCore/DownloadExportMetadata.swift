@@ -88,6 +88,9 @@ public struct DownloadExportMetadata: Sendable {
         .map { ($0.text, $0.time) }
     }
 
+    /// The lyrics most players read from the standard lyrics tag: timestamped LRC when synced, plain otherwise.
+    var displayLyrics: String? { lrcLyrics ?? lyrics }
+
     var lrcLyrics: String? {
         let lines = timedLines
         guard !lines.isEmpty else { return nil }

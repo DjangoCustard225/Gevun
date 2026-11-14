@@ -19,35 +19,26 @@ struct ArtistDetailView: View {
     private var related: [Artist] { info?.relatedArtists(excluding: artist.id) ?? [] }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ArtworkHeaderView(id: detail?.coverArt ?? artist.coverArt)
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(spacing: 12) {
-                        Text(detail?.name ?? artist.name).font(.title2.weight(.bold)).foregroundStyle(.white)
-                            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity).accessibilityAddTraits(.isHeader)
-                        about
+        ArtworkPage(coverArt: detail?.coverArt ?? artist.coverArt) {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(spacing: 12) {
+                    Text(detail?.name ?? artist.name).font(.title2.weight(.bold)).foregroundStyle(.white)
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity).accessibilityAddTraits(.isHeader)
+                    about
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(title: "Albums")
+                    if let message { ErrorState(message: message) { Task { await load() } } }
+                    if loading { ProgressView().frame(maxWidth: .infinity).padding(16) }
+                    if !loading && albums.isEmpty && message == nil {
+                        ContentUnavailableView("No albums available", systemImage: "square.stack")
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionTitle(title: "Albums")
-                        if let message { ErrorCard(message: message) { Task { await load() } } }
-                        if loading { ProgressView().frame(maxWidth: .infinity).padding(16) }
-                        if !loading && albums.isEmpty && message == nil {
-                            ContentUnavailableView("No albums available", systemImage: "square.stack")
-                        }
-                        AlbumGrid(albums: albums)
-                    }
-                    if !related.isEmpty { relatedSection }
-                }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 28)
-            }.frame(maxWidth: 640).frame(maxWidth: .infinity)
-                .background { NativeScrollToTop().frame(width: 0, height: 0) }
+                    AlbumGrid(albums: albums)
+                }
+                if !related.isEmpty { relatedSection }
+            }
         }
-        .ignoresSafeArea(.container, edges: .top)
-        .navigationTitle("").navigationBarTitleDisplayMode(.inline).pageBackground()
-        .modifier(ArtworkScrollEdges())
-        .tint(.white)
-        .toolbarBackground(.hidden, for: .navigationBar)
         .sheet(isPresented: $showsAbout) {
             aboutSheet
                 .presentationDetents([.medium, .large])

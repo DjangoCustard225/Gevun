@@ -11,7 +11,7 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("Instances") {
+            Section("Servers") {
                 ForEach(store.instances) { instance in
                     HStack(spacing: 8) {
                         Button {
@@ -28,7 +28,7 @@ struct SettingsView: View {
                                 }.frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }.buttonStyle(.plain).accessibilityHint(
-                            instance.id == store.activeID ? "Active instance" : "Switch to this instance")
+                            instance.id == store.activeID ? "Active server" : "Switch to this server")
                         Menu {
                             Button("Edit", systemImage: "pencil") { editing = instance }
                             if instance.id == store.activeID {
@@ -43,12 +43,8 @@ struct SettingsView: View {
                             }
                         }.accessibilityLabel("Manage \(instance.name)")
                     }.padding(.vertical, 2)
-                        .swipeActions {
-                            Button("Remove", role: .destructive) { deleting = instance }
-                            Button("Edit") { editing = instance }.tint(theme.accent)
-                        }
                 }
-                Button("Add instance", systemImage: "plus") { store.showConnection = true }
+                Button("Add server", systemImage: "plus") { store.showConnection = true }
             }.listRowBackground(theme.surface)
 
             Section {
@@ -65,19 +61,27 @@ struct SettingsView: View {
                 } label: {
                     Label("Downloads", systemImage: "arrow.down.circle")
                 }
-                NavigationLink("Listening queue") { QueueSyncView() }
-                NavigationLink("About Gevun") { AboutGevunView() }
+                NavigationLink {
+                    QueueSyncView()
+                } label: {
+                    Label("Listening queue", systemImage: "list.bullet")
+                }
+                NavigationLink {
+                    AboutGevunView()
+                } label: {
+                    Label("About Gevun", systemImage: "info.circle")
+                }
             }.listRowBackground(theme.surface)
         }
         .listSectionSpacing(.compact)
         .navigationTitle("Settings").pageBackground()
         .sheet(item: $editing) { instance in ConnectionView(editing: instance).environment(store) }
         .confirmationDialog(
-            "Remove \(deleting?.name ?? "instance")?",
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            "Remove \(deleting?.name ?? "server")?",
+            isPresented: $deleting.isPresent(),
             titleVisibility: .visible
         ) {
-            Button("Remove instance", role: .destructive) {
+            Button("Remove server", role: .destructive) {
                 guard let deleting else { return }
                 do { try store.remove(deleting.id) } catch { store.notice = error.localizedDescription }
                 self.deleting = nil

@@ -33,7 +33,7 @@ struct DownloadOptionsView: View {
                     DownloadProgressRow(job: job)
                 }
             } header: {
-                Text("\(status.jobs.count) \(status.jobs.count == 1 ? "download" : "downloads")")
+                Text(status.jobs.count.counted("download"))
             } footer: {
                 Text("Downloads continue when you close this sheet.")
             }
@@ -77,7 +77,7 @@ struct DownloadOptionsView: View {
         }
         Section {
             Label(
-                "\(selection.songs.count) \(selection.songs.count == 1 ? "song" : "songs")",
+                selection.songs.count.counted("song"),
                 systemImage: "music.note")
             Label(
                 store.downloads.wifiOnly ? "Downloads over Wi-Fi" : "Wi-Fi and cellular",

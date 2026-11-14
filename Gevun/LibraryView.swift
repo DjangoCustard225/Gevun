@@ -7,13 +7,60 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
     var title: String { rawValue.capitalized }
 }
 
+/// The Library tab: links into the library, then the newest albums.
+struct LibraryHomeView: View {
+    @Environment(\.appTheme) private var theme
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                link("Albums", symbol: "square.stack") { LibraryView(category: .albums) }
+                Divider().overlay(theme.border).padding(.leading, 48)
+                link("Artists", symbol: "person.2") { LibraryView(category: .artists) }
+                Divider().overlay(theme.border).padding(.leading, 48)
+                link("Songs", symbol: "music.note") { LibraryView(category: .songs) }
+                Divider().overlay(theme.border).padding(.leading, 48)
+                link("Playlists", symbol: "music.note.list") { PlaylistsView() }
+                Divider().overlay(theme.border)
+                Text("Recently Added").font(.title2.weight(.bold)).foregroundStyle(.white)
+                    .accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 28).padding(.bottom, 14)
+                AlbumGrid(albums: store.recentAlbums)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12).readingWidth()
+            .background { NativeScrollToTop().frame(width: 0, height: 0) }
+        }
+        .navigationTitle("Library")
+        .pageBackground()
+        .refreshable { await store.loadRecentAlbums(force: true) }
+        .task(id: "\(store.sessionID):\(store.downloads.connected)") { await store.loadRecentAlbums() }
+        .listeningLinkPresentation()
+    }
+
+    private func link(_ title: String, symbol: String, @ViewBuilder destination: () -> some View) -> some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 16) {
+                Image(systemName: symbol).font(.title3).foregroundStyle(theme.secondary).frame(width: 32)
+                Text(title).font(.title3).foregroundStyle(.white)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(theme.secondary)
+            }
+            .padding(.vertical, 14).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The full list of albums, artists or songs, opened from the Library tab.
 struct LibraryView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
     private var player: PlayerStore { store.player }
     let category: LibraryCategory
     @State private var downloadedOnly = false
-    private var namespace: String { store.api.map { DownloadKey.namespace(for: $0.instance) } ?? "" }
+    private var namespace: String { store.downloadNamespace ?? "" }
     private var albums: [Album] {
         downloadedOnly ? store.downloads.library.downloadedAlbums(namespace: namespace) : store.albums
     }
@@ -32,7 +79,7 @@ struct LibraryView: View {
                         description: Text("Download songs or albums from their menus to listen offline."))
                 }
                 if let message {
-                    ErrorCard(message: message) { Task { await store.loadLibrary(category) } }
+                    ErrorState(message: message) { Task { await store.loadLibrary(category) } }
                 }
                 content
                 if loading {
@@ -45,7 +92,7 @@ struct LibraryView: View {
         }
         .navigationTitle(category.title)
         .toolbar {
-            if category == .albums || category == .songs {
+            if category != .artists {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Section("Show") {
@@ -62,8 +109,8 @@ struct LibraryView: View {
                             }
                         }
                     } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                    }.accessibilityLabel(category == .albums ? "Sort and filter albums" : "Filter songs")
+                        Image(systemName: category == .albums ? "arrow.up.arrow.down" : "line.3.horizontal.decrease")
+                    }.accessibilityLabel("\(category.title) options")
                 }
             }
         }
@@ -150,19 +197,13 @@ struct LibraryView: View {
 }
 
 struct ArtistRow: View {
-    @Environment(\.appTheme) private var theme
     let artist: Artist
     var body: some View {
         HStack(spacing: 10) {
             ArtworkView(id: artist.coverArt, size: 192, cornerRadius: 32)
                 .frame(width: 64, height: 64).clipShape(Circle())
-            VStack(alignment: .leading, spacing: 3) {
-                Text(artist.name).font(.headline).foregroundStyle(.white)
-                if let count = artist.albumCount {
-                    Text("\(count) \(count == 1 ? "album" : "albums")").font(.caption).foregroundStyle(theme.secondary)
-                }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(theme.secondary)
+            Text(artist.name).font(.headline).foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }.padding(.vertical, 4).contentShape(Rectangle())
     }
 }

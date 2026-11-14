@@ -87,7 +87,7 @@ struct DownloadsSettingsView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "arrow.up.arrow.down")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Sort and manage downloads")
             }

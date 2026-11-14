@@ -350,8 +350,12 @@ final class DownloadStore {
     }
 
     func updateProgress(_ id: UUID, written: Int64, expected: Int64) {
-        guard active[id] != nil, expected > 0 else { return }
-        let value = min(1, max(0, Double(written) / Double(expected)))
+        guard active[id] != nil else { return }
+        // Transcoded downloads often have no known length, so fall back to an estimate.
+        let estimated = expected <= 0
+        guard let total = estimated ? library.jobs.first(where: { $0.id == id })?.estimatedBytes : expected, total > 0
+        else { return }
+        let value = min(estimated ? 0.99 : 1, max(0, Double(written) / Double(total)))
         // Avoid invalidating song rows on every network packet.
         if abs((progress[id] ?? -1) - value) >= 0.01 { progress[id] = value }
     }

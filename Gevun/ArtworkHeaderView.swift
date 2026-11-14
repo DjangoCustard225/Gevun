@@ -78,3 +78,26 @@ struct ArtworkScrollEdges: ViewModifier {
             .scrollEdgeEffectHidden(true, for: .top)
     }
 }
+
+/// The scaffold shared by album, artist and playlist pages: a full-bleed cover that stretches on
+/// pull, with the page's content below it and a transparent navigation bar above.
+struct ArtworkPage<Content: View>: View {
+    let coverArt: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ArtworkHeaderView(id: coverArt)
+                content.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 28)
+            }.frame(maxWidth: 640).frame(maxWidth: .infinity)
+                .background { NativeScrollToTop().frame(width: 0, height: 0) }
+        }
+        .ignoresSafeArea(.container, edges: .top)
+        .navigationTitle("").navigationBarTitleDisplayMode(.inline)
+        .pageBackground()
+        .modifier(ArtworkScrollEdges())
+        .tint(.white)
+        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+}

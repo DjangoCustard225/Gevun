@@ -37,10 +37,10 @@ struct AppTheme {
         background = Self.color(hue: hue, saturation: chroma * 0.95, brightness: 0.13)
         surface = Self.color(hue: hue, saturation: chroma * 0.85, brightness: 0.22)
         elevated = Self.color(hue: hue, saturation: chroma * 0.95, brightness: 0.34)
-        // Lighten the accent and secondary text so all hues remain readable against dark surfaces.
-        accent = Self.color(hue: hue, saturation: chroma * 0.55, brightness: 1)
+        // The accent is always white; backgrounds and borders still take the artwork's hue.
+        accent = Theme.defaultAccent
         secondary = Self.color(hue: hue, saturation: chroma * 0.14, brightness: 0.8)
-        border = accent.opacity(0.13)
+        border = Self.color(hue: hue, saturation: chroma * 0.55, brightness: 1).opacity(0.13)
         playerPrimary = Self.color(
             hue: hue, saturation: chroma, brightness: chroma == 0 ? 0.38 : min(0.9, max(0.65, brightness)))
         playerSecondary = Self.color(hue: secondaryHue, saturation: chroma, brightness: chroma == 0 ? 0.18 : 0.65)
