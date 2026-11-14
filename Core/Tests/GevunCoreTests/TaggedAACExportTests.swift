@@ -51,11 +51,28 @@
             XCTAssertEqual(coverData, artwork)
             XCTAssertNotNil(tags.first { $0.identifier == .iTunesMetadataTrackNumber })
             XCTAssertNotNil(tags.first { $0.identifier == .iTunesMetadataDiscNumber })
-            let originalPackets = try await packets(in: source)
+            // macOS reads ADTS packets with their frame headers, while M4A stores bare payloads.
+            let originalPackets = adtsPayloads(audio)
             let exportedPackets = try await packets(in: destination)
             XCTAssertFalse(originalPackets.isEmpty)
             XCTAssertEqual(exportedPackets, originalPackets, "AAC packet payloads must remain unchanged")
             XCTAssertEqual(try Data(contentsOf: source), audio, "The saved download must remain untouched")
+        }
+
+        /// The raw AAC payloads of an ADTS stream, without each frame's 7- or 9-byte header.
+        private func adtsPayloads(_ stream: Data) -> Data {
+            let bytes = [UInt8](stream)
+            var payloads = Data()
+            var offset = 0
+            while offset + 7 <= bytes.count, bytes[offset] == 0xFF, bytes[offset + 1] & 0xF0 == 0xF0 {
+                let header = bytes[offset + 1] & 1 == 1 ? 7 : 9
+                let length =
+                    Int(bytes[offset + 3] & 3) << 11 | Int(bytes[offset + 4]) << 3 | Int(bytes[offset + 5]) >> 5
+                guard length > header, offset + length <= bytes.count else { break }
+                payloads.append(contentsOf: bytes[offset + header..<offset + length])
+                offset += length
+            }
+            return payloads
         }
 
         @available(macOS 26.0, iOS 26.0, *)
