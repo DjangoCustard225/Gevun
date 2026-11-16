@@ -14,6 +14,8 @@ struct ArtistDetailView: View {
     @State private var message: String?
     @State private var infoFailed = false
     @State private var revision = UUID()
+    @State private var topSongs: [Song] = []
+    @State private var topSongsLoading = true
 
     private var albums: [Album] { detail?.albums ?? [] }
     private var related: [Artist] { info?.relatedArtists(excluding: artist.id) ?? [] }
@@ -27,6 +29,7 @@ struct ArtistDetailView: View {
                         .frame(maxWidth: .infinity).accessibilityAddTraits(.isHeader)
                     about
                 }
+                if topSongsLoading || !topSongs.isEmpty { topSongsSection }
                 VStack(alignment: .leading, spacing: 12) {
                     SectionTitle(title: "Albums")
                     if let message { ErrorState(message: message) { Task { await load() } } }
@@ -37,6 +40,15 @@ struct ArtistDetailView: View {
                     AlbumGrid(albums: albums)
                 }
                 if !related.isEmpty { relatedSection }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    FavoriteButton(id: artist.id, starred: detail?.starred ?? artist.starred, kind: .artist)
+                } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(.white)
+                }.accessibilityLabel("Artist actions")
             }
         }
         .sheet(isPresented: $showsAbout) {
@@ -118,6 +130,35 @@ struct ArtistDetailView: View {
         }
     }
 
+    /// The server's most played songs for this artist. Hidden when the server can't rank them.
+    private var topSongsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionTitle(title: "Top Songs")
+            if topSongsLoading {
+                // Hold the section's space while the server ranks songs, so the albums below don't jump.
+                ForEach(0..<5, id: \.self) { _ in placeholderRow }
+                    .accessibilityHidden(true)
+            } else {
+                ForEach(Array(topSongs.prefix(5).enumerated()), id: \.element.id) { index, song in
+                    SongRow(song: song) { store.player.play(topSongs, at: index) }
+                }
+            }
+        }
+    }
+
+    /// Same footprint as a `SongRow`: 56-point cover, two lines, 4 points of padding above and below.
+    private var placeholderRow: some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: Theme.artworkCornerRadius).fill(theme.surface).frame(width: 56, height: 56)
+            VStack(alignment: .leading, spacing: 6) {
+                Capsule().fill(theme.surface).frame(width: 150, height: 12)
+                Capsule().fill(theme.surface).frame(width: 90, height: 10)
+            }
+            Spacer()
+        }
+        .frame(minHeight: 44).padding(.vertical, 4)
+    }
+
     private var relatedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(title: "Similar artists")
@@ -152,9 +193,20 @@ struct ArtistDetailView: View {
         infoLoading = true
         message = nil
         infoFailed = false
+        topSongs = []
+        topSongsLoading = true
         async let library: Void = loadAlbums(api, token: token)
         async let metadata: Void = loadInfo(api, token: token)
-        _ = await (library, metadata)
+        async let popular: Void = loadTopSongs(api, token: token)
+        _ = await (library, metadata, popular)
+    }
+
+    private func loadTopSongs(_ api: NavidromeAPI, token: UUID) async {
+        // Optional extra: a failure just leaves the section out.
+        let value = try? await api.topSongs(artist: artist.name)
+        guard isCurrent(api, token) else { return }
+        topSongs = value ?? []
+        topSongsLoading = false
     }
 
     private func isCurrent(_ api: NavidromeAPI, _ token: UUID) -> Bool {

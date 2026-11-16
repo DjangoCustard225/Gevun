@@ -7,49 +7,138 @@ enum LibraryCategory: String, CaseIterable, Identifiable, Hashable {
     var title: String { rawValue.capitalized }
 }
 
+/// The parts of the Library page, each of which can be hidden in Settings.
+enum LibrarySection: String, CaseIterable, Identifiable {
+    case albums, artists, songs, genres, playlists, favorites, downloaded, recentlyAdded
+    static let hiddenKey = "hiddenLibrarySections"
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .recentlyAdded: "Recently Added"
+        default: rawValue.capitalized
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .albums: "square.stack"
+        case .artists: "person.2"
+        case .songs: "music.note"
+        case .genres: "guitars"
+        case .playlists: "music.note.list"
+        case .favorites: "heart"
+        case .downloaded: "arrow.down.circle"
+        case .recentlyAdded: "clock"
+        }
+    }
+
+    /// Hidden sections, stored as a comma-separated list so new sections start visible.
+    static func hidden(in stored: String) -> Set<Self> {
+        Set(stored.split(separator: ",").compactMap { Self(rawValue: String($0)) })
+    }
+    static func storage(for hidden: Set<Self>) -> String {
+        allCases.filter(hidden.contains).map(\.rawValue).joined(separator: ",")
+    }
+}
+
 /// The Library tab: links into the library, then the newest albums.
 struct LibraryHomeView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
+    @AppStorage(LibrarySection.hiddenKey) private var hiddenSections = ""
 
     var body: some View {
+        let hidden = LibrarySection.hidden(in: hiddenSections)
+        let links = LibrarySection.allCases.filter { $0 != .recentlyAdded && !hidden.contains($0) }
+        let showsRecent = !hidden.contains(.recentlyAdded)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                link("Albums", symbol: "square.stack") { LibraryView(category: .albums) }
-                Divider().overlay(theme.border).padding(.leading, 48)
-                link("Artists", symbol: "person.2") { LibraryView(category: .artists) }
-                Divider().overlay(theme.border).padding(.leading, 48)
-                link("Songs", symbol: "music.note") { LibraryView(category: .songs) }
-                Divider().overlay(theme.border).padding(.leading, 48)
-                link("Playlists", symbol: "music.note.list") { PlaylistsView() }
-                Divider().overlay(theme.border)
-                Text("Recently Added").font(.title2.weight(.bold)).foregroundStyle(.white)
-                    .accessibilityAddTraits(.isHeader)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 28).padding(.bottom, 14)
-                AlbumGrid(albums: store.recentAlbums)
+                ForEach(links) { section in
+                    link(section)
+                    Divider().overlay(theme.border).padding(.leading, section == links.last ? 0 : 48)
+                }
+                if showsRecent {
+                    Text("Recently Added").font(.title2.weight(.bold)).foregroundStyle(.white)
+                        .accessibilityAddTraits(.isHeader)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, links.isEmpty ? 0 : 28).padding(.bottom, 14)
+                    AlbumGrid(albums: store.recentAlbums)
+                }
+                if links.isEmpty && !showsRecent {
+                    ContentUnavailableView(
+                        "Library is hidden", systemImage: "eye.slash",
+                        description: Text("Choose what to show in Settings > Library."))
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 12).readingWidth()
             .background { NativeScrollToTop().frame(width: 0, height: 0) }
         }
         .navigationTitle("Library")
         .pageBackground()
-        .refreshable { await store.loadRecentAlbums(force: true) }
-        .task(id: "\(store.sessionID):\(store.downloads.connected)") { await store.loadRecentAlbums() }
+        .refreshable { if showsRecent { await store.loadRecentAlbums(force: true) } }
+        .task(id: "\(store.sessionID):\(store.downloads.connected):\(showsRecent)") {
+            if showsRecent { await store.loadRecentAlbums() }
+        }
         .listeningLinkPresentation()
     }
 
-    private func link(_ title: String, symbol: String, @ViewBuilder destination: () -> some View) -> some View {
-        NavigationLink(destination: destination) {
+    @ViewBuilder private func destination(_ section: LibrarySection) -> some View {
+        switch section {
+        case .albums: LibraryView(category: .albums)
+        case .artists: LibraryView(category: .artists)
+        case .songs: LibraryView(category: .songs)
+        case .genres: GenresView()
+        case .playlists: PlaylistsView()
+        case .favorites: FavoritesView()
+        case .downloaded: DownloadedView()
+        case .recentlyAdded: EmptyView()
+        }
+    }
+
+    private func link(_ section: LibrarySection) -> some View {
+        NavigationLink {
+            destination(section)
+        } label: {
             HStack(spacing: 16) {
-                Image(systemName: symbol).font(.title3).foregroundStyle(theme.secondary).frame(width: 32)
-                Text(title).font(.title3).foregroundStyle(.white)
+                Image(systemName: section.symbol).font(.title3).foregroundStyle(theme.secondary).frame(width: 32)
+                Text(section.title).font(.title3).foregroundStyle(.white)
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(theme.secondary)
             }
             .padding(.vertical, 14).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Settings > Library: which sections the Library page shows.
+struct LibrarySectionsView: View {
+    @Environment(\.appTheme) private var theme
+    @AppStorage(LibrarySection.hiddenKey) private var hiddenSections = ""
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(LibrarySection.allCases) { section in
+                    Toggle(isOn: binding(section)) { Label(section.title, systemImage: section.symbol) }
+                }
+            } footer: {
+                Text("Hiding a section only removes it from the Library page. Nothing is deleted.")
+            }
+            .tint(theme.switchTint)
+            .listRowBackground(theme.surface)
+        }
+        .navigationTitle("Library").navigationBarTitleDisplayMode(.inline)
+        .pageBackground()
+    }
+
+    private func binding(_ section: LibrarySection) -> Binding<Bool> {
+        Binding {
+            !LibrarySection.hidden(in: hiddenSections).contains(section)
+        } set: { shown in
+            var hidden = LibrarySection.hidden(in: hiddenSections)
+            if shown { hidden.remove(section) } else { hidden.insert(section) }
+            hiddenSections = LibrarySection.storage(for: hidden)
+        }
     }
 }
 

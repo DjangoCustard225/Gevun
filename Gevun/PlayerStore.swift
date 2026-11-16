@@ -389,7 +389,8 @@ final class PlayerStore: ObservableObject {
                 return
             }
             let asset = AVURLAsset(
-                url: try localURL ?? api.streamURL(song.id),
+                url: try localURL
+                    ?? api.streamURL(song.id, quality: PlaybackSettings.streamingQuality(onWiFi: downloads.onWiFi)),
                 options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
             let item = AVPlayerItem(asset: asset)
             itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in

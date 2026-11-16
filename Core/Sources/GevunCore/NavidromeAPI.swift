@@ -125,10 +125,40 @@ public final class NavidromeAPI: @unchecked Sendable {
         return value
     }
 
-    public func albums(type: String = "alphabeticalByName", offset: Int = 0, size: Int = 60) async throws -> [Album] {
-        try await payload(
-            "getAlbumList2", [item("type", type), item("offset", offset), item("size", size)], at: \.albumList2
-        ).album ?? []
+    public func albums(
+        type: String = "alphabeticalByName", genre: String? = nil, offset: Int = 0, size: Int = 60
+    ) async throws -> [Album] {
+        var parameters = [item("type", type), item("offset", offset), item("size", size)]
+        if let genre { parameters.append(item("genre", genre)) }
+        return try await payload("getAlbumList2", parameters, at: \.albumList2).album ?? []
+    }
+
+    public func genres() async throws -> [Genre] {
+        let list: GenreList = try await payload("getGenres", fresh: true, at: \.genres)
+        return (list.genre ?? []).filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    /// An artist's most popular songs. Navidrome needs an external agent such as Last.fm to rank them.
+    public func topSongs(artist name: String, count: Int = 10) async throws -> [Song] {
+        let list: SongList = try await payload(
+            "getTopSongs", [item("artist", name), item("count", count)], at: \.topSongs)
+        return list.song ?? []
+    }
+
+    /// Everything the user has favourited.
+    public func favorites() async throws -> Favorites {
+        try await payload("getStarred2", fresh: true, at: \.starred2)
+    }
+
+    /// Favourites (`star`) or unfavourites (`unstar`) a song, album or artist.
+    public func setFavorite(_ favorite: Bool, id: String, kind: FavoriteKind) async throws {
+        let name =
+            switch kind {
+            case .song: "id"
+            case .album: "albumId"
+            case .artist: "artistId"
+            }
+        _ = try await request(favorite ? "star" : "unstar", [item(name, id)])
     }
 
     public func album(_ id: String) async throws -> Album {
@@ -264,8 +294,17 @@ public final class NavidromeAPI: @unchecked Sendable {
             [item("id", id), item("submission", "true"), item("time", Int(Date().timeIntervalSince1970 * 1000))])
     }
 
-    public func streamURL(_ id: String) throws -> URL {
-        try url("stream", parameters: [item("id", id), item("format", "raw"), item("maxBitRate", 0)])
+    public func streamURL(_ id: String, quality: DownloadQuality = DownloadQuality()) throws -> URL {
+        guard quality.format != .original else {
+            return try url("stream", parameters: [item("id", id), item("format", "raw"), item("maxBitRate", 0)])
+        }
+        // A size estimate lets the player show the length and seek within a converted stream.
+        return try url(
+            "stream",
+            parameters: [
+                item("id", id), item("format", quality.format.rawValue), item("maxBitRate", quality.bitrate),
+                item("estimateContentLength", "true"),
+            ])
     }
 
     public func downloadURL(_ id: String, quality: DownloadQuality) throws -> URL {
@@ -317,6 +356,9 @@ private struct Response: Decodable {
     let shares: Shares?
     let playlists: PlaylistList?
     let playlist: Playlist?
+    let genres: GenreList?
+    let topSongs: SongList?
+    let starred2: Favorites?
 }
 private struct APIError: Decodable { let code: Int }
 private struct AlbumList: Decodable { let album: [Album]? }
@@ -329,6 +371,8 @@ private struct LegacyLyrics: Decodable {
     let value: String?
 }
 
+private struct GenreList: Decodable { let genre: [Genre]? }
+private struct SongList: Decodable { let song: [Song]? }
 private struct PlaylistList: Decodable { let playlist: [Playlist]? }
 private struct Shares: Decodable { let share: [ServerShare]? }
 private struct ServerShare: Decodable { let url: String }

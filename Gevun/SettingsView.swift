@@ -5,6 +5,8 @@ struct SettingsView: View {
     @Environment(\.appTheme) private var theme
     @Environment(AppStore.self) private var store
     @AppStorage("scrobbleEnabled") private var scrobble = false
+    @AppStorage(PlaybackSettings.wifiQualityKey) private var wifiQuality = "original"
+    @AppStorage(PlaybackSettings.cellularQualityKey) private var cellularQuality = "original"
     @State private var editing: Instance?
     @State private var deleting: Instance?
     @State private var testing = false
@@ -48,14 +50,21 @@ struct SettingsView: View {
             }.listRowBackground(theme.surface)
 
             Section {
-                Toggle("Listening history", isOn: $scrobble)
-                    .tint(theme.switchTint)
+                qualityPicker("Wi-Fi", symbol: "wifi", selection: $wifiQuality)
+                qualityPicker("Mobile data", symbol: "antenna.radiowaves.left.and.right", selection: $cellularQuality)
+            } header: {
+                Text("Streaming quality")
             } footer: {
-                Text("Report plays to Navidrome and its configured scrobbling services.")
+                Text("Lower qualities are converted by your server. Downloads always play from the device.")
             }
             .listRowBackground(theme.surface)
 
             Section {
+                NavigationLink {
+                    LibrarySectionsView()
+                } label: {
+                    Label("Library", systemImage: "music.note.square.stack")
+                }
                 NavigationLink {
                     DownloadsSettingsView()
                 } label: {
@@ -66,6 +75,14 @@ struct SettingsView: View {
                 } label: {
                     Label("Listening queue", systemImage: "list.bullet")
                 }
+                Toggle(isOn: $scrobble) { Label("Listening history", systemImage: "clock.arrow.circlepath") }
+                    .tint(theme.switchTint)
+            } footer: {
+                Text("Listening history reports plays to Navidrome and its scrobbling services.")
+            }
+            .listRowBackground(theme.surface)
+
+            Section {
                 NavigationLink {
                     AboutGevunView()
                 } label: {
@@ -89,6 +106,14 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { deleting = nil }
         } message: {
             Text("Its saved credentials and downloaded music will be removed from this device.")
+        }
+    }
+
+    private func qualityPicker(_ title: String, symbol: String, selection: Binding<String>) -> some View {
+        Picker(title, systemImage: symbol, selection: selection) {
+            ForEach(DownloadQuality.streamingChoices, id: \.storageValue) { quality in
+                Text(quality.title).tag(quality.storageValue)
+            }
         }
     }
 

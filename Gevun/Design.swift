@@ -136,6 +136,8 @@ struct AlbumGrid: View {
                     AlbumCard(album: album)
                 }
                 .buttonStyle(.plain)
+                // The default preview has large rounded corners that clip the title and artist.
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.artworkCornerRadius))
                 .contextMenu { AlbumActions(album: album, downloadedOnly: downloadedOnly) }
             }
         }
@@ -150,6 +152,7 @@ struct AlbumActions: View {
         Button("Play", systemImage: "play.fill") { play(shuffle: false) }
         Button("Shuffle", systemImage: "shuffle") { play(shuffle: true) }
         Button("Download", systemImage: "arrow.down.circle") { Task { await store.downloadAlbum(album) } }
+        FavoriteButton(id: album.id, starred: album.starred, kind: .album)
         ServerShareButton(ids: [album.id])
     }
 
@@ -259,11 +262,40 @@ struct SongActions: View {
     var body: some View {
         QueueActions(songs: [song])
         AddToPlaylistMenu(songs: [song])
+        FavoriteButton(id: song.id, starred: song.starred, kind: .song)
         if let remove {
             Button("Remove from Playlist", systemImage: "minus.circle", role: .destructive, action: remove)
         }
         SongDownloadActions(song: song)
     }
+}
+
+/// Adds or removes a song, album or artist from the server's favourites.
+struct FavoriteButton: View {
+    @Environment(AppStore.self) private var store
+    let id: String
+    let starred: String?
+    let kind: FavoriteKind
+    var body: some View {
+        let favorite = store.isFavorite(id, starred: starred)
+        Button(
+            favorite ? "Remove from Favorites" : "Add to Favorites", systemImage: favorite ? "heart.slash" : "heart"
+        ) {
+            Task { await store.setFavorite(!favorite, id: id, kind: kind) }
+        }
+    }
+}
+
+/// Streaming quality from Settings, chosen separately for Wi-Fi and mobile data.
+enum PlaybackSettings {
+    static let wifiQualityKey = "streamQualityWiFi"
+    static let cellularQualityKey = "streamQualityCellular"
+
+    static func streamingQuality(onWiFi: Bool) -> DownloadQuality {
+        let key = onWiFi ? wifiQualityKey : cellularQualityKey
+        return DownloadQuality(storageValue: UserDefaults.standard.string(forKey: key) ?? "original")
+    }
+
 }
 
 /// The round glass play button under an album or playlist heading.

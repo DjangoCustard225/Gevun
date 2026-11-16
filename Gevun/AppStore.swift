@@ -13,6 +13,8 @@ final class AppStore {
     private(set) var albums: [Album] = []
     private(set) var artists: [Artist] = []
     private(set) var songs: [Song] = []
+    /// Favourite changes made in this session, by ID, so every row reflects them before a reload.
+    private(set) var favoriteOverrides: [String: Bool] = [:]
     /// The newest albums, for the shelf at the top of the library.
     private(set) var recentAlbums: [Album] = []
     private(set) var libraryLoading: Set<LibraryCategory> = []
@@ -125,6 +127,7 @@ final class AppStore {
         artists = []
         songs = []
         recentAlbums = []
+        favoriteOverrides = [:]
         libraryErrors = [:]
         libraryLoading = []
         libraryLoaded = []
@@ -237,6 +240,28 @@ final class AppStore {
             guard self.api === api, !Task.isCancelled else { return }
             downloadSelection = DownloadSelection(songs: detail.songs, album: detail, instance: api.instance)
         } catch { if self.api === api { notice = friendlyError(error) } }
+    }
+
+    // MARK: Favourites
+
+    func isFavorite(_ id: String, starred: String?) -> Bool { favoriteOverrides[id] ?? (starred != nil) }
+
+    /// Updates the row straight away, then reverts it if the server refuses.
+    func setFavorite(_ favorite: Bool, id: String, kind: FavoriteKind) async {
+        guard let api else { return }
+        guard downloads.connected else {
+            notice = "Connect to your server to change favourites."
+            return
+        }
+        let previous = favoriteOverrides[id]
+        favoriteOverrides[id] = favorite
+        do {
+            try await api.setFavorite(favorite, id: id, kind: kind)
+        } catch {
+            guard self.api === api else { return }
+            favoriteOverrides[id] = previous
+            notice = friendlyError(error)
+        }
     }
 
     // MARK: Playlists

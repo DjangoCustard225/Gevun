@@ -61,6 +61,7 @@ struct AlbumDetailView: View {
                     Button("Play album", systemImage: "play.fill") { player.play(songs) }
                     QueueActions(songs: songs)
                     AddToPlaylistMenu(songs: songs)
+                    FavoriteButton(id: album.id, starred: displayedAlbum.starred, kind: .album)
                 } label: {
                     Image(systemName: "ellipsis").foregroundStyle(.white)
                 }

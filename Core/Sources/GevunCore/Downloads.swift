@@ -33,6 +33,23 @@ public struct DownloadQuality: Codable, Equatable, Sendable {
         self.bitrate = format.bitrates.contains(value) ? value : format.defaultBitrate
     }
     public var title: String { format == .original ? "Original" : "\(format.title) · \(bitrate) kbps" }
+
+    /// Choices offered for streaming: original, then each format's bitrates from highest to lowest.
+    public static var streamingChoices: [DownloadQuality] {
+        [DownloadQuality()]
+            + DownloadFormat.allCases.filter { $0 != .original }.flatMap { format in
+                format.bitrates.reversed().map { DownloadQuality(format: format, bitrate: $0) }
+            }
+    }
+
+    /// A compact form for settings storage, such as "mp3-320" or "original".
+    public var storageValue: String { format == .original ? "original" : "\(format.rawValue)-\(bitrate)" }
+
+    public init(storageValue: String) {
+        let parts = storageValue.split(separator: "-")
+        let format = parts.first.flatMap { DownloadFormat(rawValue: String($0)) } ?? .original
+        self.init(format: format, bitrate: parts.count > 1 ? Int(parts[1]) : nil)
+    }
 }
 
 public struct DownloadKey: Codable, Hashable, Sendable {

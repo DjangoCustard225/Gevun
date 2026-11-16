@@ -120,6 +120,63 @@ final class CoreTests: XCTestCase {
         }
     }
 
+    func testFavoritesGenresAndTopSongs() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","starred2":{"artist":[{"id":"ar","name":"A","starred":"2026-01-01"}],"album":[{"id":"al","name":"B"}],"song":[{"id":"s","title":"C"}]}}}"#
+        let favorites = try await api.favorites()
+        XCTAssertEqual(favorites.artist?.first?.starred, "2026-01-01")
+        XCTAssertEqual(favorites.album?.map(\.id), ["al"])
+        XCTAssertEqual(favorites.song?.map(\.id), ["s"])
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "getStarred2.view")
+
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok"}}"#
+        try await api.setFavorite(true, id: "al", kind: .album)
+        var url = try XCTUnwrap(FixtureProtocol.lastRequest?.url)
+        XCTAssertEqual(url.lastPathComponent, "star.view")
+        XCTAssertTrue(url.query?.contains("albumId=al") == true)
+        try await api.setFavorite(false, id: "s", kind: .song)
+        url = try XCTUnwrap(FixtureProtocol.lastRequest?.url)
+        XCTAssertEqual(url.lastPathComponent, "unstar.view")
+        XCTAssertTrue(url.query?.contains("id=s") == true)
+
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","genres":{"genre":[{"value":"Jazz","songCount":3,"albumCount":1},{"value":" "}]}}}"#
+        let genres = try await api.genres()
+        XCTAssertEqual(genres.map(\.value), ["Jazz"])
+
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","albumList2":{"album":[{"id":"g","name":"Blue"}]}}}"#
+        _ = try await api.albums(type: "byGenre", genre: "Jazz & Blues")
+        url = try XCTUnwrap(FixtureProtocol.lastRequest?.url)
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.first { $0.name == "genre" }?.value, "Jazz & Blues")
+
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","topSongs":{"song":[{"id":"t","title":"Hit"}]}}}"#
+        let top = try await api.topSongs(artist: "Band")
+        XCTAssertEqual(top.map(\.id), ["t"])
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "getTopSongs.view")
+    }
+
+    func testStreamingQualityChoosesTranscodeParameters() throws {
+        let api = try fixtureAPI()
+        func query(_ url: URL) -> [String: String] {
+            Dictionary(
+                uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+                    .map { ($0.name, $0.value ?? "") })
+        }
+        let original = query(try api.streamURL("1"))
+        XCTAssertEqual(original["format"], "raw")
+        XCTAssertNil(original["estimateContentLength"])
+        let mp3 = query(try api.streamURL("1", quality: DownloadQuality(storageValue: "mp3-192")))
+        XCTAssertEqual(mp3["format"], "mp3")
+        XCTAssertEqual(mp3["maxBitRate"], "192")
+        XCTAssertEqual(mp3["estimateContentLength"], "true")
+        XCTAssertEqual(DownloadQuality(storageValue: "aac-128").storageValue, "aac-128")
+        XCTAssertEqual(DownloadQuality(storageValue: "nonsense").format, .original)
+        XCTAssertEqual(DownloadQuality.streamingChoices.first?.format, .original)
+    }
+
     func testPlaylistMutationsSendFormParameters() async throws {
         let api = try fixtureAPI()
         FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","playlist":{"id":"p9","name":"Road"}}}"#

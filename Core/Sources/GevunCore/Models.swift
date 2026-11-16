@@ -141,6 +141,7 @@ public struct Artist: Codable, Identifiable, Hashable, Sendable {
     public let name: String
     public let coverArt: String?
     public let albumCount: Int?
+    public var starred: String?
     public let album: [Album]?
     public var albums: [Album] { album ?? [] }
     public init(id: String, name: String, coverArt: String? = nil, albumCount: Int? = nil, album: [Album]? = nil) {
@@ -148,7 +149,28 @@ public struct Artist: Codable, Identifiable, Hashable, Sendable {
         self.name = name
         self.coverArt = coverArt
         self.albumCount = albumCount
+        self.starred = nil
         self.album = album
+    }
+}
+
+public struct Genre: Codable, Identifiable, Hashable, Sendable {
+    public let value: String
+    public let songCount: Int?
+    public let albumCount: Int?
+    public var id: String { value }
+}
+
+public enum FavoriteKind: Sendable { case song, album, artist }
+
+public struct Favorites: Codable, Sendable {
+    public let artist: [Artist]?
+    public let album: [Album]?
+    public let song: [Song]?
+    public init(artist: [Artist]? = nil, album: [Album]? = nil, song: [Song]? = nil) {
+        self.artist = artist
+        self.album = album
+        self.song = song
     }
 }
 
