@@ -31,36 +31,14 @@ private struct PageBackground: ViewModifier {
     }
 }
 
-/// The app icon, drawn in SwiftUI: an obsidian platter with a spindle hole and an orange tonearm
-/// on alabaster. Proportions follow the 1024-point icon artwork.
+/// The app icon artwork, shown in About Gevun.
 struct BrandMark: View {
     var size: CGFloat = 64
-    private let alabaster = Color(red: 0.961, green: 0.957, blue: 0.941)
-    private let obsidian = Color(red: 0.078, green: 0.078, blue: 0.086)
-    private let orange = Color(red: 1, green: 0.353, blue: 0.122)
-
     var body: some View {
-        Canvas { context, canvas in
-            let unit = canvas.width / 1024
-            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * unit, y: y * unit) }
-            func circle(_ radius: CGFloat) -> Path {
-                Path(
-                    ellipseIn: CGRect(
-                        x: (512 - radius) * unit, y: (512 - radius) * unit, width: radius * 2 * unit,
-                        height: radius * 2 * unit))
-            }
-            context.fill(Path(CGRect(origin: .zero, size: canvas)), with: .color(alabaster))
-            context.fill(circle(300), with: .color(obsidian))
-            context.fill(circle(26), with: .color(alabaster))
-            var arm = Path()
-            arm.move(to: point(822, 206))
-            arm.addLine(to: point(614, 636))
-            context.stroke(
-                arm, with: .color(orange), style: StrokeStyle(lineWidth: 42 * unit, lineCap: .round))
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
-        .accessibilityHidden(true)
+        Image("BrandMark").resizable().interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 
