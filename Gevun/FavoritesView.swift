@@ -69,7 +69,6 @@ struct FavoritesView: View {
             }
         }
         .pageBackground()
-        .refreshable { await load() }
         .task(id: store.sessionID) { await load() }
         .listeningLinkPresentation()
     }
@@ -210,7 +209,6 @@ struct GenresView: View {
         }
         .navigationTitle("Genres")
         .pageBackground()
-        .refreshable { await load() }
         .task(id: store.sessionID) { await load() }
     }
 

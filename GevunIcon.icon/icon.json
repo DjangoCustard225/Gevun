@@ -1,24 +1,59 @@
 {
-  "fill": {
-    "linear-gradient": [
-      "srgb:0.95294,0.54510,0.43922,1.00000",
-      "srgb:0.74902,0.25098,0.33333,1.00000"
-    ]
-  },
-  "fill-specializations": [
-    { "appearance": "dark", "value": "system-dark" },
-    { "appearance": "tinted", "value": "automatic" }
-  ],
-  "groups": [
+  "fill-specializations" : [
     {
-      "name": "Pearl headphones",
-      "layers": [
-        { "name": "Headphone outline", "image-name": "Headphones.svg" }
-      ],
-      "specular": true,
-      "shadow": { "kind": "neutral", "opacity": 0.2 },
-      "translucency": { "enabled": true, "value": 0.15 }
+      "value" : {
+        "solid" : "srgb:0.96078,0.95686,0.94118,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "srgb:0.07843,0.07843,0.08627,1.00000"
+      }
     }
   ],
-  "supported-platforms": { "squares": "shared" }
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "value" : {
+                "solid" : "srgb:0.07843,0.07843,0.08627,1.00000"
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "srgb:0.96078,0.95686,0.94118,1.00000"
+              }
+            }
+          ],
+          "image-name" : "Platter.svg",
+          "name" : "Platter"
+        },
+        {
+          "fill" : {
+            "solid" : "srgb:1.00000,0.35294,0.12157,1.00000"
+          },
+          "image-name" : "Tonearm.svg",
+          "name" : "Tonearm"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.35
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.4
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
 }

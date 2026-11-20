@@ -41,8 +41,7 @@ struct PlaylistsView: View {
             }
         }
         .pageBackground()
-        .refreshable { await store.loadPlaylists() }
-        .task(id: store.sessionID) { await store.ensurePlaylists() }
+        .task(id: "\(store.sessionID):\(store.libraryRevision)") { await store.ensurePlaylists() }
         .playlistNameAlert(
             "Rename Playlist", item: $renaming, initialName: { $0.name }, confirmTitle: "Save"
         ) { playlist, name in

@@ -10,7 +10,7 @@ struct PlayerDetailSheet<Content: View>: View {
     }
 
     var body: some View {
-        NavigationStack { content }
+        AlbumNavigationStack { content }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
             }

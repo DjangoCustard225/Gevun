@@ -161,6 +161,29 @@ public struct Genre: Codable, Identifiable, Hashable, Sendable {
     public var id: String { value }
 }
 
+public struct ScanStatus: Codable, Sendable {
+    public let scanning: Bool
+    /// Items counted by the current or last scan.
+    public let count: Int?
+    /// When the last scan finished, as an ISO 8601 timestamp.
+    public let lastScan: String?
+
+    public init(scanning: Bool, count: Int?, lastScan: String?) {
+        self.scanning = scanning
+        self.count = count
+        self.lastScan = lastScan
+    }
+
+    public var lastScanDate: Date? {
+        guard let lastScan else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: lastScan) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: lastScan)
+    }
+}
+
 public enum FavoriteKind: Sendable { case song, album, artist }
 
 public struct Favorites: Codable, Sendable {

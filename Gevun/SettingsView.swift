@@ -49,6 +49,15 @@ struct SettingsView: View {
                 Button("Add server", systemImage: "plus") { store.showConnection = true }
             }.listRowBackground(theme.surface)
 
+            if store.api != nil {
+                Section {
+                    LibraryScanRow()
+                } footer: {
+                    Text("Asks Navidrome to look for new and changed music. Needs an admin account.")
+                }
+                .listRowBackground(theme.surface)
+            }
+
             Section {
                 qualityPicker("Wi-Fi", symbol: "wifi", selection: $wifiQuality)
                 qualityPicker("Mobile data", symbol: "antenna.radiowaves.left.and.right", selection: $cellularQuality)

@@ -158,6 +158,24 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "getTopSongs.view")
     }
 
+    func testLibraryScanStatusAndStart() async throws {
+        let api = try fixtureAPI()
+        FixtureProtocol.body =
+            #"{"subsonic-response":{"status":"ok","scanStatus":{"scanning":false,"count":1200,"lastScan":"2026-11-16T18:02:21.123Z"}}}"#
+        let status = try await api.scanStatus()
+        XCTAssertFalse(status.scanning)
+        XCTAssertEqual(status.count, 1200)
+        XCTAssertNotNil(status.lastScanDate)
+        XCTAssertEqual(FixtureProtocol.lastRequest?.url?.lastPathComponent, "getScanStatus.view")
+
+        FixtureProtocol.body = #"{"subsonic-response":{"status":"ok","scanStatus":{"scanning":true,"count":0}}}"#
+        let started = try await api.startScan(full: true)
+        XCTAssertTrue(started.scanning)
+        let url = try XCTUnwrap(FixtureProtocol.lastRequest?.url)
+        XCTAssertEqual(url.lastPathComponent, "startScan.view")
+        XCTAssertTrue(url.query?.contains("fullScan=true") == true)
+    }
+
     func testStreamingQualityChoosesTranscodeParameters() throws {
         let api = try fixtureAPI()
         func query(_ url: URL) -> [String: String] {

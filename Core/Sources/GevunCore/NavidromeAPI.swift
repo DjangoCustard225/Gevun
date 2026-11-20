@@ -133,6 +133,17 @@ public final class NavidromeAPI: @unchecked Sendable {
         return try await payload("getAlbumList2", parameters, at: \.albumList2).album ?? []
     }
 
+    /// Whether the server is scanning its music folders, and what it has counted so far.
+    public func scanStatus() async throws -> ScanStatus {
+        try await payload("getScanStatus", fresh: true, at: \.scanStatus)
+    }
+
+    /// Asks the server to look for new and changed files, or to re-read every file when `full`.
+    /// Navidrome only lets admins scan.
+    public func startScan(full: Bool = false) async throws -> ScanStatus {
+        try await payload("startScan", full ? [item("fullScan", "true")] : [], fresh: true, at: \.scanStatus)
+    }
+
     public func genres() async throws -> [Genre] {
         let list: GenreList = try await payload("getGenres", fresh: true, at: \.genres)
         return (list.genre ?? []).filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -359,6 +370,7 @@ private struct Response: Decodable {
     let genres: GenreList?
     let topSongs: SongList?
     let starred2: Favorites?
+    let scanStatus: ScanStatus?
 }
 private struct APIError: Decodable { let code: Int }
 private struct AlbumList: Decodable { let album: [Album]? }

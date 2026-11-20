@@ -31,16 +31,36 @@ private struct PageBackground: ViewModifier {
     }
 }
 
+/// The app icon, drawn in SwiftUI: an obsidian platter with a spindle hole and an orange tonearm
+/// on alabaster. Proportions follow the 1024-point icon artwork.
 struct BrandMark: View {
-    @Environment(\.appTheme) private var theme
     var size: CGFloat = 64
+    private let alabaster = Color(red: 0.961, green: 0.957, blue: 0.941)
+    private let obsidian = Color(red: 0.078, green: 0.078, blue: 0.086)
+    private let orange = Color(red: 1, green: 0.353, blue: 0.122)
+
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28).fill(theme.accent.gradient)
-            Image(systemName: "headphones")
-                .font(.system(size: size * 0.52, weight: .semibold))
-                .foregroundStyle(theme.background)
-        }.frame(width: size, height: size).accessibilityHidden(true)
+        Canvas { context, canvas in
+            let unit = canvas.width / 1024
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * unit, y: y * unit) }
+            func circle(_ radius: CGFloat) -> Path {
+                Path(
+                    ellipseIn: CGRect(
+                        x: (512 - radius) * unit, y: (512 - radius) * unit, width: radius * 2 * unit,
+                        height: radius * 2 * unit))
+            }
+            context.fill(Path(CGRect(origin: .zero, size: canvas)), with: .color(alabaster))
+            context.fill(circle(300), with: .color(obsidian))
+            context.fill(circle(26), with: .color(alabaster))
+            var arm = Path()
+            arm.move(to: point(822, 206))
+            arm.addLine(to: point(614, 636))
+            context.stroke(
+                arm, with: .color(orange), style: StrokeStyle(lineWidth: 42 * unit, lineCap: .round))
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 
@@ -122,6 +142,9 @@ struct AlbumCard: View {
 }
 
 struct AlbumGrid: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.appTheme) private var theme
+    @Environment(\.openAlbum) private var openAlbum
     let albums: [Album]
     var downloadedOnly = false
     var body: some View {
@@ -136,9 +159,18 @@ struct AlbumGrid: View {
                     AlbumCard(album: album)
                 }
                 .buttonStyle(.plain)
-                // The default preview has large rounded corners that clip the title and artist.
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.artworkCornerRadius))
-                .contextMenu { AlbumActions(album: album, downloadedOnly: downloadedOnly) }
+                .contextMenu {
+                    // Tapping a custom preview only closes the menu, so this opens the album instead.
+                    if let openAlbum {
+                        Button("Go to Album", systemImage: "info.circle") {
+                            openAlbum(AlbumRoute(album: album, downloadedOnly: downloadedOnly))
+                        }
+                    }
+                    AlbumActions(album: album, downloadedOnly: downloadedOnly)
+                } preview: {
+                    // Previews are drawn outside this view, so hand them what the artwork needs.
+                    AlbumPreview(album: album).environment(store).environment(\.appTheme, theme)
+                }
             }
         }
     }

@@ -26,6 +26,8 @@ final class AppStore {
     private(set) var playlistsLoading = false
     private(set) var playlistsError: String?
     private(set) var playlistsLoaded = false
+    /// Changes when the server's library has been rescanned, so open pages fetch their lists again.
+    private(set) var libraryRevision = UUID()
     /// Changes after any playlist edit so open playlist pages reload their songs.
     private(set) var playlistRevision = UUID()
     /// Songs waiting for the "New Playlist" name prompt.
@@ -145,6 +147,15 @@ final class AppStore {
         newPlaylistRequest = nil
         serverVersion = ""
         artwork.clear()
+    }
+
+    /// Marks every list as stale after a server scan. Pages keep showing what they have until
+    /// their fresh copy arrives, so nothing goes blank.
+    func reloadLibrary() {
+        libraryLoaded = []
+        recentAlbumsKey = nil
+        playlistsLoaded = false
+        libraryRevision = UUID()
     }
 
     func ensureLibrary(_ category: LibraryCategory) async {

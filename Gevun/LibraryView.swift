@@ -74,8 +74,7 @@ struct LibraryHomeView: View {
         }
         .navigationTitle("Library")
         .pageBackground()
-        .refreshable { if showsRecent { await store.loadRecentAlbums(force: true) } }
-        .task(id: "\(store.sessionID):\(store.downloads.connected):\(showsRecent)") {
+        .task(id: "\(store.sessionID):\(store.libraryRevision):\(store.downloads.connected):\(showsRecent)") {
             if showsRecent { await store.loadRecentAlbums() }
         }
         .listeningLinkPresentation()
@@ -204,10 +203,9 @@ struct LibraryView: View {
             }
         }
         .pageBackground()
-        .refreshable { if !downloadedOnly { await store.loadLibrary(category) } }
         .task(
             id:
-                "\(category.rawValue):\(category == .albums ? store.albumOrder.rawValue : ""):\(store.sessionID):\(downloadedOnly)"
+                "\(category.rawValue):\(category == .albums ? store.albumOrder.rawValue : ""):\(store.sessionID):\(store.libraryRevision):\(downloadedOnly)"
         ) {
             if !downloadedOnly { await store.ensureLibrary(category) }
         }
